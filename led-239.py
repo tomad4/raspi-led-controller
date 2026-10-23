@@ -1,9 +1,8 @@
 import asyncio
-import time
 import board
 import neopixel
-from bleak import BleakScanner, BleakClient
 import logging
+from bleak import BleakScanner, BleakClient
 
 # === CONFIG ===
 NUM_PIXELS = 210
@@ -12,19 +11,8 @@ BRIGHTNESS = 0.5
 
 pixels = neopixel.NeoPixel(PIXEL_PIN, NUM_PIXELS, brightness=BRIGHTNESS, auto_write=False)
 
-HR_MAC_LIST = [
-    "E0:48:24:B5:48:92",  # Tomasz zegarek
-    "F8:3F:4E:04:FB:2C",  # Tomasz pas COSPOO
-    "14:13:0B:CB:A4:7D",  # Kasia zegarek
-#    "F2:22:33:DD:11:CC",  # Kasia pas
-]
-
-HR_PROFILE_MAP = {
-    "E0:48:24:B5:48:92": "tomasz",
-    "F8:3F:4E:04:FB:2C": "tomasz",
-    "14:13:0B:CB:A4:7D": "kasia",
-#    "F2:22:33:DD:11:CC": "kasia",
-}
+HR_MAC = "F8:3F:4E:04:FB:2C"  # Pas HR COSPOO
+HR_PROFILE = "tomasz"
 
 # — STREFY TĘTNA (uniwersalne)
 ZONE_COLORS = {
@@ -86,67 +74,24 @@ async def blinking_red():
         pixels.show()
         await asyncio.sleep(0.5)
 
-# === IDLE MODES ===
-
-async def idle_mode_1():
-    bar = [(0, 102, 255)] * 8 + [(0, 204, 0)] * 8 + [(255, 255, 102)] * 8
-    length = len(bar)
-    pos = 0
-    while True:
-        pixels.fill((0, 0, 0))
-        for i, color in enumerate(bar):
-            idx = (pos + i) % NUM_PIXELS
-            pixels[idx] = color
-        pixels.show()
-        await asyncio.sleep(0.05)
-        pos = (pos + 1) % NUM_PIXELS
-
-# dodatkowe tryby do testów (przykładowe puste definicje)
-async def idle_mode_2():
-    while True:
-        pixels.fill((20, 20, 20))
-        pixels.show()
-        await asyncio.sleep(1)
-
-async def idle_mode_3():
-    while True:
-        await asyncio.sleep(1)
-
-async def idle_mode_4():
-    colors = [
-        (0, 51, 128),   # dark blue
-        (0, 102, 255),  # blue
-        (0, 204, 0),    # green
-        (255, 255, 102) # yellow
-    ]
-    segment_len = 30
-    direction = 1
-    pos = 0
-
-    gradient = []
-    for i in range(segment_len):
-        c_index = i * len(colors) // segment_len
-        gradient.append(colors[c_index])
-
-    while True:
-        pixels.fill((0, 0, 0))  # Clear strip
-
-        for i in range(segment_len):
-            idx = pos + i
-            if idx < NUM_PIXELS:
-                pixels[idx] = gradient[i]
-
-        pixels.show()
-        await asyncio.sleep(0.03)
-
-        pos += direction
-        if pos + segment_len >= NUM_PIXELS or pos <= 0:
-            direction *= -1
-
 # === GŁÓWNA LOGIKA ===
 
 current_task = None
 last_zone = None
+
+async def cancel_current_task():
+    """Anuluj bieżącą animację i poczekaj, aż zakończy się anulowanie."""
+    global current_task
+    task = current_task
+    current_task = None
+    if task is None or task.done():
+        return
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
 
 async def handle_hr(_, data, profile):
     global current_task, last_zone
@@ -164,12 +109,7 @@ async def handle_hr(_, data, profile):
         return
     last_zone = zone
 
-    if current_task:
-        current_task.cancel()
-        try:
-            await current_task
-        except:
-            pass
+    await cancel_current_task()
 
     if zone == "blink":
         current_task = asyncio.create_task(blinking_red())
@@ -180,15 +120,14 @@ async def handle_hr(_, data, profile):
 async def main():
     global current_task, last_zone
     last_zone = None
-    current_task = asyncio.create_task(idle_mode_4())  # <- ZMIEN TUTAJ TRYB IDLE
 
     while True:
         logging.info("Szukam urządzenia HR...")
         devices = await BleakScanner.discover(timeout=10)
-        found_device = next((d for d in devices if d.address in HR_MAC_LIST), None)
+        found_device = next((d for d in devices if d.address.upper() == HR_MAC.upper()), None)
 
         if found_device:
-            profile = HR_PROFILE_MAP[found_device.address]
+            profile = HR_PROFILE
             logging.info(f"Znaleziono urządzenie: {found_device.address} ({profile})")
 
             try:
@@ -203,21 +142,17 @@ async def main():
             except Exception as e:
                 logging.error(f"Błąd BLE: {type(e).__name__}: {e}")
 
-        logging.warning("Rozłączono – wracam do idle")
+        logging.warning("Rozłączono – ponawiam wyszukiwanie")
         last_zone = None
-        if current_task:
-            current_task.cancel()
-            try:
-                await current_task
-            except:
-                pass
-        current_task = asyncio.create_task(idle_mode_1())
+        await cancel_current_task()
         await asyncio.sleep(5)
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
+        print("Wyłączono")
+    finally:
+        # Uruchamia się także po błędzie, aby pasek nie został włączony.
         pixels.fill((0, 0, 0))
         pixels.show()
-        print("Wyłączono")
