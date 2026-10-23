@@ -1,0 +1,118 @@
+import asyncio
+import time
+import board
+import neopixel
+from bleak import BleakScanner, BleakClient
+
+# === CONFIG ===
+NUM_PIXELS = 239
+PIXEL_PIN = board.D18
+BRIGHTNESS = 0.6
+HR_MAC = "E0:48:24:B5:48:92"
+HR_CHAR_UUID = "00002a37-0000-1000-8000-00805f9b34fb"
+
+pixels = neopixel.NeoPixel(PIXEL_PIN, NUM_PIXELS, brightness=BRIGHTNESS, auto_write=False)
+
+# === HEART RATE ZONES ===
+def get_color(hr):
+    if hr < 80:
+        return (255, 255, 255)  # White
+    elif hr < 100:
+        return (0, 0, 255)  # Blue
+    elif hr < 120:
+        return (0, 255, 0)  # Green
+    elif hr < 150:
+        return (255, 255, 0)  # Yellow
+    elif hr < 180:
+        return (255, 0, 0)  # Red
+    else:
+        return "BLINK"  # Blinking red
+
+# === ANIMATIONS ===
+async def idle_animation():
+    pos = 0
+    while True:
+        pixels.fill((20, 20, 20))
+        for i in range(10):
+            idx = (pos + i) % NUM_PIXELS
+            pixels[idx] = (255, 255, 255)
+        pixels.show()
+        await asyncio.sleep(0.05)
+        pos = (pos + 1) % NUM_PIXELS
+
+async def blinking_red():
+    while True:
+        pixels.fill((255, 0, 0))
+        pixels.show()
+        await asyncio.sleep(0.5)
+        pixels.fill((0, 0, 0))
+        pixels.show()
+        await asyncio.sleep(0.5)
+
+async def fade_to_color(target_color):
+    steps = 30
+    for i in range(steps + 1):
+        color = tuple(int(c * i / steps) for c in target_color)
+        pixels.fill(color)
+        pixels.show()
+        await asyncio.sleep(0.02)
+
+# === MAIN ===
+async def main():
+    current_task = asyncio.create_task(idle_animation())
+
+    while True:
+        print("Szukam urządzenia HR...")
+        devices = await BleakScanner.discover(timeout=10)
+        found = next((d for d in devices if d.address == HR_MAC), None)
+
+        if found:
+            print("Znaleziono zegarek! Łączenie...")
+            try:
+                async with BleakClient(found.address) as client:
+
+                    async def handle_hr(_, data):
+                        nonlocal current_task
+                        hr = data[1]
+                        print(f"Tętno: {hr}")
+                        color = get_color(hr)
+
+                        if current_task:
+                            current_task.cancel()
+                            try:
+                                await current_task
+                            except:
+                                pass
+
+                        if color == "BLINK":
+                            current_task = asyncio.create_task(blinking_red())
+                        else:
+                            current_task = asyncio.create_task(fade_to_color(color))
+
+                    print("Połączono z zegarkiem. Subskrypcja HR...")
+                    await client.start_notify(HR_CHAR_UUID, handle_hr)
+
+                    while client.is_connected:
+                        await asyncio.sleep(1)
+
+            except Exception as e:
+                print(f"Błąd BLE: {type(e).__name__}: {e}")
+
+        # Wróć do idle
+        print("Brak zegarka, przełączam w tryb idle...")
+        if current_task:
+            current_task.cancel()
+            try:
+                await current_task
+            except:
+                pass
+        current_task = asyncio.create_task(idle_animation())
+        await asyncio.sleep(30)
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pixels.fill((0, 0, 0))
+        pixels.show()
+        print("Wyłączono")

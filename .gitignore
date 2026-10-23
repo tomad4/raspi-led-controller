@@ -1,0 +1,40 @@
+# Logs
+*.log
+*.log.*
+logs/
+log/
+
+# Python cache and virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# Node.js / frontend build artifacts
+node_modules/
+web/node_modules/
+web/dist/
+dist/
+
+# Compiled native artifacts
+*.o
+*.so
+*.so.*
+*.pyc
+*.sconsign.dblite
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

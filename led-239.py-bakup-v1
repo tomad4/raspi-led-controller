@@ -1,0 +1,184 @@
+import asyncio
+import time
+import board
+import neopixel
+from bleak import BleakScanner, BleakClient
+import logging
+
+# === LOGGING ===
+logging.basicConfig(
+    filename="/home/pi/led/heart.log",
+    level=logging.DEBUG,
+    format="%(asctime)s %(levelname)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+
+# === LED CONFIG ===
+NUM_PIXELS = 239
+PIXEL_PIN = board.D18
+BRIGHTNESS = 0.6
+pixels = neopixel.NeoPixel(PIXEL_PIN, NUM_PIXELS, brightness=BRIGHTNESS, auto_write=False)
+
+# === DEVICE CONFIG ===
+# === DEVICE CONFIG ===
+HR_DEVICES = {
+    "E0:48:24:B5:48:92": "tomasz",  # Tomasz zegarek
+    "D3:14:22:AA:55:01": "tomasz",  # Tomasz pas
+    "C1:11:44:AA:22:BB": "kasia",   # Kasia zegarek
+    "F2:22:33:DD:11:CC": "kasia",   # Kasia pas
+}
+
+#HR_MAC_LIST = [
+#    "E0:48:24:B5:48:92",  # Tomasz zegarek
+#    "D3:14:22:AA:55:01",  # Tomasz pas
+#    "C1:11:44:AA:22:BB",  # Żona zegarek
+#    "F2:22:33:DD:11:CC",  # Żona pas
+#]
+
+#HR_PROFILE_MAP = {
+#    "E0:48:24:B5:48:92": "tomasz",
+#    "D3:14:22:AA:55:01": "tomasz",
+#    "C1:11:44:AA:22:BB": "kasia",
+#    "F2:22:33:DD:11:CC": "kasia",
+#}
+
+ZONE_SETS = {
+    "tomasz": {
+        "white":  (255, 255, 255),
+        "blue":   (0, 102, 255),
+        "green":  (0, 204, 0),
+        "yellow": (255, 255, 102),
+        "orange": (255, 165, 0),
+        "red":    (255, 0, 0),
+    },
+    "kasia": {
+        "white":  (255, 255, 255),
+        "blue":   (153, 153, 255),
+        "green":  (153, 255, 153),
+        "yellow": (255, 255, 153),
+        "orange": (255, 204, 153),
+        "red":    (255, 102, 102),
+    }
+}
+
+HR_ZONE_RANGES = {
+    "tomasz": [(93, "blue"), (111, "green"), (130, "yellow"), (148, "orange"), (167, "red"), (181, "blink")],
+    "kasia":   [(85, "blue"), (100, "green"), (120, "yellow"), (135, "orange"), (155, "red"), (180, "blink")],
+}
+
+# === ANIMATIONS ===
+async def fade_from_center(color):
+    center = NUM_PIXELS // 2
+    for offset in range(center):
+        i = center + offset
+        j = center - offset
+        if 0 <= i < NUM_PIXELS:
+            pixels[i] = color
+        if 0 <= j < NUM_PIXELS:
+            pixels[j] = color
+        pixels.show()
+        await asyncio.sleep(0.005)
+
+async def blinking_red():
+    while True:
+        pixels.fill((255, 0, 0))
+        pixels.show()
+        await asyncio.sleep(0.5)
+        pixels.fill((0, 0, 0))
+        pixels.show()
+        await asyncio.sleep(0.5)
+
+async def idle_animation():
+    color_sequence = [(0, 102, 255), (0, 204, 0), (255, 255, 102)]
+    color_index = 0
+    pos = 0
+    while True:
+        pixels.fill((0, 0, 0))
+        for i in range(20):
+            idx = (pos + i) % NUM_PIXELS
+            pixels[idx] = color_sequence[color_index]
+        pixels.show()
+        await asyncio.sleep(0.02)
+        pos += 1
+        if pos >= NUM_PIXELS:
+            pos = 0
+            color_index = (color_index + 1) % len(color_sequence)
+
+# === MAIN ===
+async def handle_hr(_, data, user_profile):
+    global current_task, last_zone
+    flags = data[0]
+    hr = int.from_bytes(data[1:3], byteorder='little') if flags & 0x01 else data[1]
+    logging.info(f"Tętno: {hr} ({user_profile})")
+
+    if hr < 30 or hr > 220:
+        logging.warning("Tętno poza zakresem – ignoruję")
+        return
+
+    zone_name = "white"
+    for threshold, name in HR_ZONE_RANGES[user_profile]:
+        if hr < threshold:
+            break
+        zone_name = name
+
+    if zone_name == last_zone:
+        return
+
+    last_zone = zone_name
+
+    if current_task:
+        current_task.cancel()
+        try:
+            await current_task
+        except:
+            pass
+
+    if zone_name == "blink":
+        current_task = asyncio.create_task(blinking_red())
+    else:
+        color = ZONE_SETS[user_profile][zone_name]
+        current_task = asyncio.create_task(fade_from_center(color))
+
+async def main():
+    global current_task, last_zone
+    last_zone = None
+    current_task = asyncio.create_task(idle_animation())
+
+    while True:
+        logging.info("Szukam urządzenia HR...")
+        devices = await BleakScanner.discover(timeout=10)
+        found_device = next((d for d in devices if d.address in HR_MAC_LIST), None)
+
+        if found_device:
+            profile = HR_PROFILE_MAP[found_device.address]
+            logging.info(f"Znaleziono urządzenie: {found_device.address} ({profile})")
+            try:
+                async with BleakClient(found_device.address) as client:
+                    await client.start_notify(
+                        "00002a37-0000-1000-8000-00805f9b34fb",
+                        lambda sender, data: asyncio.create_task(handle_hr(sender, data, profile))
+                    )
+
+                    while client.is_connected:
+                        await asyncio.sleep(1)
+            except Exception as e:
+                logging.error(f"Błąd BLE: {type(e).__name__}: {e}")
+
+        logging.warning("Rozłączono – wracam do idle")
+        last_zone = None
+        if current_task:
+            current_task.cancel()
+            try:
+                await current_task
+            except:
+                pass
+        current_task = asyncio.create_task(idle_animation())
+        await asyncio.sleep(5)
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pixels.fill((0, 0, 0))
+        pixels.show()
+        print("Wyłączono")
