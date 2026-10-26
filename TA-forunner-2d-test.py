@@ -79,7 +79,14 @@ def show_heart_rate(data, previous_band):
     if band < 60:
         band = 0
 
-    print(f"Tętno: {hr} BPM | zakres: {band if band else '<60'}–{band + 9 if band else 59} BPM")
+    if band == 0:
+        range_label = "poniżej 60"
+    elif band == 180:
+        range_label = "180 lub więcej"
+    else:
+        range_label = f"{band}–{band + 9}"
+
+    print(f"Tętno: {hr} BPM | zakres: {range_label} BPM")
     if band != previous_band:
         pixels.fill(color_for_heart_rate(hr))
         pixels.show()
