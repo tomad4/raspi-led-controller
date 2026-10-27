@@ -4,13 +4,50 @@
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import os
+import socket
 import sys
+import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 
 WEB_DIR = Path(__file__).resolve().parent
 ALLOWED_FILES = {"/": "index.html", "/index.html": "index.html", "/style.css": "style.css", "/app.js": "app.js"}
+
+
+def systemd_notify(message):
+    """Send a notification to systemd when running as a managed service."""
+    address = os.environ.get("NOTIFY_SOCKET")
+    if not address:
+        return
+    if address.startswith("@"):
+        address = "\0" + address[1:]
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as notify_socket:
+            notify_socket.sendto(message.encode("utf-8"), address)
+    except OSError as error:
+        print(f"Nie udało się powiadomić systemd: {error}", file=sys.stderr, flush=True)
+
+
+class WatchdogHTTPServer(ThreadingHTTPServer):
+    """Send watchdog heartbeats from the server's request loop."""
+
+    def __init__(self, server_address, handler_class):
+        super().__init__(server_address, handler_class)
+        try:
+            watchdog_usec = int(os.environ.get("WATCHDOG_USEC", "0"))
+        except ValueError:
+            watchdog_usec = 0
+        self.watchdog_interval = max(1.0, watchdog_usec / 3_000_000) if watchdog_usec else None
+        self.last_watchdog = time.monotonic()
+
+    def service_actions(self):
+        if self.watchdog_interval is None:
+            return
+        now = time.monotonic()
+        if now - self.last_watchdog >= self.watchdog_interval:
+            systemd_notify("WATCHDOG=1")
+            self.last_watchdog = now
 
 
 class PageHandler(SimpleHTTPRequestHandler):
@@ -66,11 +103,13 @@ if len(sys.argv) != 3:
     raise SystemExit("Użycie: serve.py HOST PORT")
 
 os.chdir(WEB_DIR)
-server = ThreadingHTTPServer((sys.argv[1], int(sys.argv[2])), PageHandler)
+server = WatchdogHTTPServer((sys.argv[1], int(sys.argv[2])), PageHandler)
 print(f"Serwer statycznej strony działa na {sys.argv[1]}:{sys.argv[2]}", flush=True)
+systemd_notify("READY=1\nSTATUS=Web panel ready")
 try:
     server.serve_forever()
 except KeyboardInterrupt:
     pass
 finally:
+    systemd_notify("STOPPING=1")
     server.server_close()

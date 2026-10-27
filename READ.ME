@@ -36,6 +36,8 @@ sudo systemctl status led-212.service led-web.service
 sudo journalctl -u led-212.service -u led-web.service -f
 ~~~
 
+Both services report a systemd watchdog heartbeat. If a service process stops responding, systemd restarts it. The installer also enables the Raspberry Pi hardware watchdog when the `bcm2835_wdt` device is available; this can reboot the Pi if systemd itself stops responding. A watchdog reboot interrupts the current lighting mode and BLE connection.
+
 After changing the LED controller, restart it. The web service is restarted with it:
 
 ~~~sh
@@ -67,6 +69,7 @@ Stop a manually started server with Ctrl+C. The web panel has no login, so use i
 - **2 — Power:** reads instantaneous power over BLE Cycling Power or FTMS. The color transitions from blue at 100 W to red at 300 W; values outside this range are clamped to the ends of the scale.
 - **3 — Demo:** cycles through a few colors.
 - **4 — Night Light:** steady, dimmable color selected in the panel, with brightness from 1% to 25%.
+- **5 — Running Light:** moves a short white segment from left to right across the upper frame LEDs 112–151.
 
 Power mode requires a trainer or power meter that exposes the standard BLE Cycling Power profile (0x1818) or FTMS (0x1826). The HRM Belt provides heart rate, not power. Night Light is a steady dim light; it does not analyze or mirror a TV picture.
 

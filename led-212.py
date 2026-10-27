@@ -4,7 +4,9 @@
 import asyncio
 import json
 import logging
+import os
 import re
+import socket
 import sys
 import traceback
 
@@ -23,6 +25,11 @@ PIXEL_ORDER = neopixel.GRB
 ACTIVE_START = 8  # Python index for LED 9
 ACTIVE_STOP = NUM_PIXELS  # exclusive end index: 212
 ANIMATION_STEP = 4  # Update less often to reduce CPU load.
+TOP_START = 111  # Python index for LED 112
+TOP_STOP = 151  # Exclusive end index: LED 151
+TOP_RUNNER_LENGTH = 3
+TOP_RUNNER_DELAY = 0.08
+WHITE = (255, 255, 255)
 
 HR_MAC = "DF:44:B1:5D:B8:DC"  # HRM Belt 28911
 HR_PROFILE = "HRM Belt 28911"
@@ -72,7 +79,7 @@ def set_control(payload):
     global active_mode, last_active_mode, night_color, night_brightness
 
     mode = payload.get("mode")
-    if mode not in {"toggle", "off", "hr", "power", "demo", "night"}:
+    if mode not in {"toggle", "off", "hr", "power", "demo", "night", "top_scan"}:
         raise ValueError("Nieznany tryb.")
     if mode == "toggle":
         if active_mode == "off":
@@ -113,6 +120,35 @@ def get_status():
         "night_color": "#%02x%02x%02x" % night_color,
         "night_brightness": night_brightness,
     }
+
+
+def systemd_notify(message):
+    """Send a notification to systemd when running as a managed service."""
+    address = os.environ.get("NOTIFY_SOCKET")
+    if not address:
+        return
+    if address.startswith("@"):
+        address = "\0" + address[1:]
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as notify_socket:
+            notify_socket.sendto(message.encode("utf-8"), address)
+    except OSError as error:
+        logging.warning("Nie udało się powiadomić systemd: %s", error)
+
+
+async def systemd_watchdog():
+    """Keep systemd informed that the asyncio controller loop is responsive."""
+    try:
+        watchdog_usec = int(os.environ.get("WATCHDOG_USEC", "0"))
+    except ValueError:
+        return
+    if watchdog_usec <= 0:
+        return
+
+    interval = max(1.0, watchdog_usec / 3_000_000)
+    while True:
+        await asyncio.sleep(interval)
+        systemd_notify("WATCHDOG=1")
 
 
 async def handle_control_client(reader, writer):
@@ -235,6 +271,20 @@ async def demo_animation():
             await asyncio.sleep(2)
 
 
+async def top_scan_animation():
+    """Move a short white runner from left to right along LEDs 112–151."""
+    fill_active(BLACK)
+    width = TOP_STOP - TOP_START
+    for position in range(width):
+        for index in range(TOP_START, TOP_STOP):
+            pixels[index] = BLACK
+        for offset in range(TOP_RUNNER_LENGTH):
+            index = TOP_START + ((position + offset) % width)
+            pixels[index] = WHITE
+        pixels.show()
+        await asyncio.sleep(TOP_RUNNER_DELAY)
+
+
 async def render_modes():
     global current_task
 
@@ -268,6 +318,8 @@ async def render_modes():
             pixels.brightness = night_brightness
             fill_active(night_color)
             pixels.show()
+        elif active_mode == "top_scan":
+            current_task = asyncio.create_task(top_scan_animation())
 
 
 async def cancel_current_task():
@@ -490,8 +542,10 @@ async def main():
         api_server = await asyncio.start_server(handle_control_client, CONTROL_HOST, CONTROL_PORT)
         logging.info("Lokalne API sterowania działa na %s:%s.", CONTROL_HOST, CONTROL_PORT)
         async with api_server:
-            await asyncio.gather(render_modes(), ble_worker())
+            systemd_notify("READY=1\nSTATUS=LED controller and local API ready")
+            await asyncio.gather(render_modes(), ble_worker(), systemd_watchdog())
     finally:
+        systemd_notify("STOPPING=1")
         last_zone = None
         await cancel_current_task()
         if pixels is not None:

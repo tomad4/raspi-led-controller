@@ -2,13 +2,16 @@
 Description=LED frame and BLE heart-rate controller
 
 [Service]
-Type=simple
+Type=notify
+NotifyAccess=main
 User=root
 WorkingDirectory=/opt/raspi-led-controller
 Environment=PYTHONUNBUFFERED=1
 ExecStart=/opt/led-venv/bin/python /opt/raspi-led-controller/led-212.py
 Restart=on-failure
 RestartSec=5
+WatchdogSec=45
+TimeoutStartSec=30
 KillSignal=SIGINT
 TimeoutStopSec=15
 StandardOutput=journal

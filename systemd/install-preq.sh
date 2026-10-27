@@ -20,6 +20,20 @@ echo "Installing system packages..."
 apt-get update
 apt-get install -y python3-venv python3-pip
 
+echo "Checking for the Raspberry Pi hardware watchdog..."
+if modprobe bcm2835_wdt 2>/dev/null && { [ -e /dev/watchdog0 ] || [ -e /dev/watchdog ]; }; then
+    install -d /etc/modules-load.d /etc/systemd/system.conf.d
+    printf '%s\n' bcm2835_wdt > /etc/modules-load.d/raspi-led-watchdog.conf
+    cat > /etc/systemd/system.conf.d/raspi-led-watchdog.conf <<'EOF'
+[Manager]
+RuntimeWatchdogSec=30s
+EOF
+    echo "Hardware watchdog enabled; a system-level freeze can trigger a reboot."
+    REEXEC_SYSTEMD=1
+else
+    echo "No bcm2835 hardware watchdog device found; enabling service-level watchdogs only."
+fi
+
 echo "Preparing the Python environment..."
 if [ ! -x "$VENV_DIR/bin/python" ]; then
     python3 -m venv --system-site-packages "$VENV_DIR"
@@ -29,6 +43,9 @@ fi
 echo "Installing systemd services..."
 install -m 0644 "$PROJECT_DIR/systemd/led-212.service" /etc/systemd/system/led-212.service
 install -m 0644 "$PROJECT_DIR/systemd/led-web.service" /etc/systemd/system/led-web.service
+if [ "${REEXEC_SYSTEMD:-0}" -eq 1 ]; then
+    systemctl daemon-reexec
+fi
 systemctl daemon-reload
 
 echo "Enabling and starting the controller and web panel..."

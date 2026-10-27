@@ -29,6 +29,7 @@ function describeState(data) {
     return "Tryb Power · szukam trenażera lub miernika BLE.";
   }
   if (data.mode === "demo") return "Animacja demo działa.";
+  if (data.mode === "top_scan") return "Białe światło przesuwa się po górnej krawędzi (LED 112–151).";
   return "Lampka nocna działa.";
 }
 
