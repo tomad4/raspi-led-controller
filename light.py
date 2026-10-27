@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ręcznie zapal wskazaną diodę lub zakres na taśmie 239 NeoPixel.
+"""Ręcznie zapal wskazaną diodę lub zakres na taśmie 212 NeoPixel.
 
 Przykłady (numery diod są liczone od 1):
     sudo /home/tomek/led-venv/bin/python /home/tomek/raspi-led-controller/light.py -1
@@ -19,7 +19,7 @@ import board
 import neopixel
 
 
-NUM_PIXELS = 239
+NUM_PIXELS = 212
 PIXEL_PIN = board.D18  # GPIO18, fizyczny pin 12
 BRIGHTNESS = 0.12
 PIXEL_ORDER = neopixel.GRB

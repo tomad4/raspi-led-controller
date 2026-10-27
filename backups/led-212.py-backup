@@ -1,4 +1,3 @@
-
 import asyncio
 import time
 import board
@@ -6,12 +5,22 @@ import neopixel
 from bleak import BleakScanner, BleakClient
 import logging
 
+# === LOGGING ===
+logging.basicConfig(
+    filename="/home/pi/led/heart.log",
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+
 # === CONFIG ===
-NUM_PIXELS = 239
+NUM_PIXELS = 212
 PIXEL_PIN = board.D18
 BRIGHTNESS = 0.6
 HR_MAC = "E0:48:24:B5:48:92"
 HR_CHAR_UUID = "00002a37-0000-1000-8000-00805f9b34fb"
+
+pixels = neopixel.NeoPixel(PIXEL_PIN, NUM_PIXELS, brightness=BRIGHTNESS, auto_write=False)
 
 ZONE_COLORS = {
     "white":  (255, 255, 255),
@@ -22,17 +31,6 @@ ZONE_COLORS = {
     "red":    (255, 0, 0),
 }
 
-# === LOGGING ===
-logging.basicConfig(
-    filename="/home/pi/led/heart.log",
-    level=logging.DEBUG,
-    format="%(asctime)s %(levelname)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
-)
-
-pixels = neopixel.NeoPixel(PIXEL_PIN, NUM_PIXELS, brightness=BRIGHTNESS, auto_write=False)
-
-# === ZONE DETECTION ===
 def get_zone(hr):
     if hr < 93:
         return "white"
@@ -50,46 +48,6 @@ def get_zone(hr):
         return "blink"
 
 # === ANIMATIONS ===
-async def idle_animation():
-    colors = list(ZONE_COLORS.values())
-    segment_len = 10
-    num_segments = NUM_PIXELS // segment_len
-    offset = 0
-
-    while True:
-        for i in range(num_segments):
-            color = colors[(i + offset) % len(colors)]
-            for j in range(segment_len):
-                idx = i * segment_len + j
-                if idx < NUM_PIXELS:
-                    pixels[idx] = color
-        pixels.show()
-        offset = (offset + 1) % len(colors)
-        await asyncio.sleep(0.2)
-
-async def pulse_wave_animation(zone_color):
-    dark_color = tuple(max(0, int(c * 0.3)) for c in zone_color)
-    band_length = 10
-    half = NUM_PIXELS // 2
-    speed = 5 / ((NUM_PIXELS // 2) - band_length)  # time to travel one direction in 2.5s
-
-    # one direction
-    for offset in range(half - band_length):
-        pixels.fill(zone_color)
-        for i in range(band_length):
-            pixels[half + offset + i] = dark_color
-            pixels[half - offset - i - 1] = dark_color
-        pixels.show()
-        await asyncio.sleep(speed)
-
-    # and back
-    for offset in reversed(range(half - band_length)):
-        pixels.fill(zone_color)
-        for i in range(band_length):
-            pixels[half + offset + i] = dark_color
-            pixels[half - offset - i - 1] = dark_color
-        pixels.show()
-        await asyncio.sleep(speed)
 
 async def blinking_red(duration=2):
     start = time.time()
@@ -101,7 +59,35 @@ async def blinking_red(duration=2):
         pixels.show()
         await asyncio.sleep(0.3)
 
-# === MAIN LOOP ===
+async def wave_color_transition(target_color):
+    center = NUM_PIXELS // 2
+    max_offset = max(center, NUM_PIXELS - center)
+
+    for offset in range(max_offset):
+        i = center + offset
+        j = center - offset
+        if 0 <= i < NUM_PIXELS:
+            pixels[i] = target_color
+        if 0 <= j < NUM_PIXELS:
+            pixels[j] = target_color
+        pixels.show()
+        await asyncio.sleep(0.01)
+    pixels.fill(target_color)
+    pixels.show()
+
+async def idle_animation():
+    pos = 0
+    while True:
+        pixels.fill((20, 20, 20))
+        for i in range(10):
+            idx = (pos + i) % NUM_PIXELS
+            pixels[idx] = (255, 255, 255)
+        pixels.show()
+        await asyncio.sleep(0.05)
+        pos = (pos + 1) % NUM_PIXELS
+
+# === BLE HANDLER ===
+
 async def handle_hr(_, data):
     global current_task, last_zone
 
@@ -118,6 +104,7 @@ async def handle_hr(_, data):
         return
 
     last_zone = zone
+    logging.debug(f"Nowa strefa: {zone}")
 
     if current_task:
         current_task.cancel()
@@ -127,10 +114,12 @@ async def handle_hr(_, data):
             pass
 
     if zone == "blink":
-        current_task = asyncio.create_task(blinking_red())
+        current_task = asyncio.create_task(blinking_red(duration=2))
     else:
         color = ZONE_COLORS[zone]
-        current_task = asyncio.create_task(pulse_wave_animation(color))
+        current_task = asyncio.create_task(wave_color_transition(color))
+
+# === MAIN LOOP ===
 
 async def main():
     global current_task, last_zone
@@ -143,15 +132,17 @@ async def main():
         found = next((d for d in devices if d.address == HR_MAC), None)
 
         if found:
+            logging.info("Znaleziono urządzenie – łączenie...")
             try:
                 async with BleakClient(found.address) as client:
                     await client.start_notify(HR_CHAR_UUID, handle_hr)
+
                     while client.is_connected:
                         await asyncio.sleep(1)
             except Exception as e:
                 logging.error(f"Błąd BLE: {type(e).__name__}: {e}")
 
-        logging.warning("Rozłączono – wracam do idle")
+        logging.warning("Rozłączono – przechodzę w idle")
         last_zone = None
 
         if current_task:
@@ -163,6 +154,8 @@ async def main():
 
         current_task = asyncio.create_task(idle_animation())
         await asyncio.sleep(10)
+
+# === START ===
 
 if __name__ == "__main__":
     try:

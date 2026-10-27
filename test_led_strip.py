@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Niezależny, ograniczony test taśmy NeoPixel 239 LED na Raspberry Pi.
+"""Niezależny, ograniczony test taśmy NeoPixel 212 LED na Raspberry Pi.
 
 Uruchom w istniejącym venv (GPIO18 wymaga roota na Raspberry Pi):
     sudo /home/tomek/led-venv/bin/python /home/tomek/raspi-led-controller/test_led_strip.py
@@ -16,7 +16,7 @@ import board
 import neopixel
 
 
-NUM_PIXELS = 239
+NUM_PIXELS = 212
 PIXEL_PIN = board.D18  # GPIO18, fizyczny pin 12
 BRIGHTNESS = 0.12
 PIXEL_ORDER = neopixel.GRB
@@ -71,7 +71,7 @@ def run_test(pixels):
         time.sleep(PAUSE_SECONDS)
 
     print("Etap 5/6: pojedyncze diody na początku, środku i końcu taśmy.")
-    for position in (0, 119, 238):
+    for position in (0, 106, 211):
         pixels[position] = (255, 255, 255)
         pixels.show()
         time.sleep(COLOR_SECONDS)

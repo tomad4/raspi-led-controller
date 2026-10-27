@@ -7,13 +7,12 @@ from bleak import BleakScanner, BleakClient
 import logging
 
 # === CONFIG ===
-NUM_PIXELS = 239
+NUM_PIXELS = 212
 PIXEL_PIN = board.D18
 BRIGHTNESS = 0.6
 HR_MAC = "E0:48:24:B5:48:92"
 HR_CHAR_UUID = "00002a37-0000-1000-8000-00805f9b34fb"
 
-# === STREFY ===
 ZONE_COLORS = {
     "white":  (255, 255, 255),
     "blue":   (0, 102, 255),
@@ -23,8 +22,17 @@ ZONE_COLORS = {
     "red":    (255, 0, 0),
 }
 
-ZONE_ORDER = ["white", "blue", "green", "yellow", "orange", "red"]
+# === LOGGING ===
+logging.basicConfig(
+    filename="/home/pi/led/heart.log",
+    level=logging.DEBUG,
+    format="%(asctime)s %(levelname)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
 
+pixels = neopixel.NeoPixel(PIXEL_PIN, NUM_PIXELS, brightness=BRIGHTNESS, auto_write=False)
+
+# === ZONE DETECTION ===
 def get_zone(hr):
     if hr < 93:
         return "white"
@@ -41,63 +49,47 @@ def get_zone(hr):
     else:
         return "blink"
 
-# === LOGGING ===
-logging.basicConfig(
-    filename="/home/pi/led/heart.log",
-    level=logging.DEBUG,
-    format="%(asctime)s %(levelname)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
-)
-
-pixels = neopixel.NeoPixel(PIXEL_PIN, NUM_PIXELS, brightness=BRIGHTNESS, auto_write=False)
-
 # === ANIMATIONS ===
-async def fade_from_center(color):
-    center = NUM_PIXELS // 2
-    max_offset = max(center, NUM_PIXELS - center)
-    for offset in range(max_offset + 1):
-        i = center + offset
-        j = center - offset
-        if 0 <= i < NUM_PIXELS:
-            pixels[i] = color
-        if 0 <= j < NUM_PIXELS:
-            pixels[j] = color
-        pixels.show()
-        await asyncio.sleep(0.01)
-
-async def pulsating_wave(zone_color):
-    dim_color = tuple(max(c // 3, 1) for c in zone_color)
-    pos = 0
-    direction = 1
-    while True:
-        pixels.fill(zone_color)
-        for i in range(10):
-            idx = pos + i
-            if 0 <= idx < NUM_PIXELS:
-                pixels[idx] = dim_color
-        pixels.show()
-        await asyncio.sleep(0.05)
-        pos += direction
-        if pos + 10 >= NUM_PIXELS or pos <= 0:
-            direction *= -1
-
 async def idle_animation():
-    pos = 0
-    direction = 1
+    colors = list(ZONE_COLORS.values())
+    segment_len = 10
+    num_segments = NUM_PIXELS // segment_len
+    offset = 0
+
     while True:
-        for zone in ZONE_ORDER:
-            color = tuple(max(c // 8, 1) for c in ZONE_COLORS[zone])
-            for _ in range(NUM_PIXELS * 2):  # przejście tam i z powrotem
-                pixels.fill((0, 0, 0))
-                for i in range(15):
-                    idx = pos + i
-                    if 0 <= idx < NUM_PIXELS:
-                        pixels[idx] = color
-                pixels.show()
-                await asyncio.sleep(0.02)
-                pos += direction
-                if pos + 15 >= NUM_PIXELS or pos <= 0:
-                    direction *= -1
+        for i in range(num_segments):
+            color = colors[(i + offset) % len(colors)]
+            for j in range(segment_len):
+                idx = i * segment_len + j
+                if idx < NUM_PIXELS:
+                    pixels[idx] = color
+        pixels.show()
+        offset = (offset + 1) % len(colors)
+        await asyncio.sleep(0.2)
+
+async def pulse_wave_animation(zone_color):
+    dark_color = tuple(max(0, int(c * 0.3)) for c in zone_color)
+    band_length = 10
+    half = NUM_PIXELS // 2
+    speed = 5 / ((NUM_PIXELS // 2) - band_length)  # time to travel one direction in 2.5s
+
+    # one direction
+    for offset in range(half - band_length):
+        pixels.fill(zone_color)
+        for i in range(band_length):
+            pixels[half + offset + i] = dark_color
+            pixels[half - offset - i - 1] = dark_color
+        pixels.show()
+        await asyncio.sleep(speed)
+
+    # and back
+    for offset in reversed(range(half - band_length)):
+        pixels.fill(zone_color)
+        for i in range(band_length):
+            pixels[half + offset + i] = dark_color
+            pixels[half - offset - i - 1] = dark_color
+        pixels.show()
+        await asyncio.sleep(speed)
 
 async def blinking_red(duration=2):
     start = time.time()
@@ -109,7 +101,7 @@ async def blinking_red(duration=2):
         pixels.show()
         await asyncio.sleep(0.3)
 
-# === MAIN ===
+# === MAIN LOOP ===
 async def handle_hr(_, data):
     global current_task, last_zone
 
@@ -135,10 +127,10 @@ async def handle_hr(_, data):
             pass
 
     if zone == "blink":
-        current_task = asyncio.create_task(blinking_red(duration=2))
+        current_task = asyncio.create_task(blinking_red())
     else:
         color = ZONE_COLORS[zone]
-        current_task = asyncio.create_task(pulsating_wave(color))
+        current_task = asyncio.create_task(pulse_wave_animation(color))
 
 async def main():
     global current_task, last_zone
@@ -160,8 +152,8 @@ async def main():
                 logging.error(f"Błąd BLE: {type(e).__name__}: {e}")
 
         logging.warning("Rozłączono – wracam do idle")
-
         last_zone = None
+
         if current_task:
             current_task.cancel()
             try:

@@ -5,7 +5,7 @@ import logging
 from bleak import BleakScanner, BleakClient
 
 # === CONFIG ===
-NUM_PIXELS = 210
+NUM_PIXELS = 212
 PIXEL_PIN = board.D18
 BRIGHTNESS = 0.5
 

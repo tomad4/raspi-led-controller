@@ -14,7 +14,7 @@ logging.basicConfig(
 )
 
 # === LED CONFIG ===
-NUM_PIXELS = 239
+NUM_PIXELS = 212
 PIXEL_PIN = board.D18
 BRIGHTNESS = 0.6
 pixels = neopixel.NeoPixel(PIXEL_PIN, NUM_PIXELS, brightness=BRIGHTNESS, auto_write=False)

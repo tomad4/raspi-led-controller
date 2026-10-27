@@ -16,7 +16,7 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S"
 )
 # === CONFIG ===
-NUM_PIXELS = 239
+NUM_PIXELS = 212
 PIXEL_PIN = board.D18
 BRIGHTNESS = 0.6
 HR_MAC = "E0:48:24:B5:48:92"

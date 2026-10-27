@@ -8,7 +8,7 @@ import time
 
 # --- KONFIGURACJA ---
 MAC_ADDRESS = "E0:48:24:B5:48:92"
-LED_COUNT = 239
+LED_COUNT = 212
 BRIGHTNESS = 0.6
 PIN = board.D18
 
