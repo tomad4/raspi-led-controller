@@ -1,0 +1,18 @@
+[Unit]
+Description=LED frame and BLE heart-rate controller
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/tomek/raspi-led-controller
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/tomek/led-venv/bin/python /home/tomek/raspi-led-controller/led-212.py
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGINT
+TimeoutStopSec=15
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,87 +1,105 @@
+#!/usr/bin/env python3
+"""Sterowanie taśmą 212 NeoPixel na podstawie tętna z BLE."""
+
 import asyncio
+import logging
+import sys
+import traceback
+
 import board
 import neopixel
-import logging
-from bleak import BleakScanner, BleakClient
+from bleak import BleakClient, BleakScanner
 
-# === CONFIG ===
+
+# Konfiguracja sprzętu
 NUM_PIXELS = 212
 PIXEL_PIN = board.D18
 BRIGHTNESS = 0.5
+PIXEL_ORDER = neopixel.GRB
 
-pixels = neopixel.NeoPixel(PIXEL_PIN, NUM_PIXELS, brightness=BRIGHTNESS, auto_write=False)
+# Numery LED są liczone od 1. Program animuje diody 9–212 włącznie.
+ACTIVE_START = 8  # indeks Python dla LED nr 9
+ACTIVE_STOP = NUM_PIXELS  # koniec zakresu wyłączny: indeks 212
+ANIMATION_STEP = 4  # aktualizuj animację rzadziej, by ograniczyć obciążenie CPU
 
-HR_MAC = "F8:3F:4E:04:FB:2C"  # Pas HR COSPOO
-HR_PROFILE = "tomasz"
+HR_MAC = "DF:44:B1:5D:B8:DC"  # HRM Belt 28911
+HR_PROFILE = "HRM Belt 28911"
+HEART_RATE_CHARACTERISTIC = "00002a37-0000-1000-8000-00805f9b34fb"
+SCAN_TIMEOUT_SECONDS = 10
+RETRY_DELAY_SECONDS = 5
 
-# — STREFY TĘTNA (uniwersalne)
+BLACK = (0, 0, 0)
 ZONE_COLORS = {
-    "white":  (60, 60, 60),
-    "blue":   (0, 102, 255),
-    "green":  (0, 204, 0),
+    "white": (60, 60, 60),
+    "blue": (0, 102, 255),
+    "green": (0, 204, 0),
     "yellow": (255, 255, 102),
     "orange": (255, 165, 0),
-    "red":    (255, 0, 0),
+    "red": (255, 0, 0),
 }
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    stream=sys.stdout,
+)
+
+pixels = None
+current_task = None
+last_zone = None
+
 
 def get_zone(hr):
     if hr < 93:
         return "white"
-    elif 93 <= hr < 111:
+    if hr < 111:
         return "blue"
-    elif 111 <= hr < 130:
+    if hr < 130:
         return "green"
-    elif 130 <= hr < 148:
+    if hr < 148:
         return "yellow"
-    elif 148 <= hr < 167:
+    if hr < 167:
         return "orange"
-    elif 167 <= hr <= 180:
+    if hr <= 180:
         return "red"
-    else:
-        return "blink"
+    return "blink"
 
-# === LOGGING ===
-logging.basicConfig(
-    filename="/home/pi/led/heart.log",
-    level=logging.DEBUG,
-    format="%(asctime)s %(levelname)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
-)
 
-# === ANIMACJE ===
+def fill_active(color):
+    """Zmień wyłącznie LED nr 9–212; zakres poza ramką pozostaje nietknięty."""
+    for index in range(ACTIVE_START, ACTIVE_STOP):
+        pixels[index] = color
+
 
 async def fade_from_center(target_color):
-    center = NUM_PIXELS // 2
-    max_offset = max(center, NUM_PIXELS - center)
-    for offset in range(max_offset):
-        i = center + offset
-        j = center - offset
-        if 0 <= i < NUM_PIXELS:
-            pixels[i] = target_color
-        if 0 <= j < NUM_PIXELS:
-            pixels[j] = target_color
+    center = (ACTIVE_START + ACTIVE_STOP - 1) // 2
+    max_offset = max(center - ACTIVE_START, ACTIVE_STOP - 1 - center)
+
+    for offset in range(0, max_offset + 1, ANIMATION_STEP):
+        for index in (center + offset, center - offset):
+            if ACTIVE_START <= index < ACTIVE_STOP:
+                pixels[index] = target_color
         pixels.show()
-        await asyncio.sleep(0.003)
-    pixels.fill(target_color)
+        await asyncio.sleep(0.012)
+
+    fill_active(target_color)
     pixels.show()
+
 
 async def blinking_red():
     while True:
-        pixels.fill((255, 0, 0))
+        fill_active(ZONE_COLORS["red"])
         pixels.show()
         await asyncio.sleep(0.5)
-        pixels.fill((0, 0, 0))
+        fill_active(BLACK)
         pixels.show()
         await asyncio.sleep(0.5)
 
-# === GŁÓWNA LOGIKA ===
-
-current_task = None
-last_zone = None
 
 async def cancel_current_task():
-    """Anuluj bieżącą animację i poczekaj, aż zakończy się anulowanie."""
     global current_task
+
     task = current_task
     current_task = None
     if task is None or task.done():
@@ -93,66 +111,133 @@ async def cancel_current_task():
         pass
 
 
-async def handle_hr(_, data, profile):
+def on_heart_rate(_sender, data):
+    """Lekki callback BLE: parsuje pomiar i uruchamia animację tylko po zmianie strefy."""
     global current_task, last_zone
 
-    flags = data[0]
-    hr = int.from_bytes(data[1:3], byteorder='little') if flags & 0x01 else data[1]
+    if not data:
+        logging.warning("Odebrano pusty pomiar tętna.")
+        return
 
-    logging.info(f"[{profile}] Tętno: {hr}")
-    if hr < 30 or hr > 220:
-        logging.warning("Tętno poza zakresem – ignoruję")
+    flags = data[0]
+    if flags & 0x01:
+        if len(data) < 3:
+            logging.warning("Odebrano niepełny 16-bitowy pomiar tętna.")
+            return
+        hr = int.from_bytes(data[1:3], byteorder="little")
+    else:
+        if len(data) < 2:
+            logging.warning("Odebrano niepełny pomiar tętna.")
+            return
+        hr = data[1]
+
+    if not 30 <= hr <= 220:
+        logging.warning("Pomijam nieprawidłowe tętno: %s BPM", hr)
         return
 
     zone = get_zone(hr)
     if zone == last_zone:
         return
     last_zone = zone
+    logging.info("[%s] Tętno: %s BPM, strefa: %s", HR_PROFILE, hr, zone)
 
-    await cancel_current_task()
+    # Callback Bleak działa w pętli asyncio. Anulowanie poprzedniego efektu
+    # bez tworzenia dodatkowego zadania dla każdego pomiaru ogranicza narzut.
+    if current_task is not None and not current_task.done():
+        current_task.cancel()
 
     if zone == "blink":
         current_task = asyncio.create_task(blinking_red())
     else:
-        color = ZONE_COLORS[zone]
-        current_task = asyncio.create_task(fade_from_center(color))
+        current_task = asyncio.create_task(fade_from_center(ZONE_COLORS[zone]))
+
+
+async def find_hr_device(timeout=SCAN_TIMEOUT_SECONDS):
+    """Znajdź czujnik bez tworzenia listy wszystkich urządzeń z całego skanu."""
+    found = asyncio.Event()
+    result = None
+
+    def on_advertisement(device, _advertisement_data):
+        nonlocal result
+        if device.address.upper() == HR_MAC.upper():
+            result = device
+            found.set()
+
+    scanner = BleakScanner(detection_callback=on_advertisement)
+    await scanner.start()
+    try:
+        await asyncio.wait_for(found.wait(), timeout=timeout)
+    except asyncio.TimeoutError:
+        return None
+    finally:
+        await scanner.stop()
+
+    return result
+
 
 async def main():
-    global current_task, last_zone
-    last_zone = None
+    global pixels, last_zone
 
-    while True:
-        logging.info("Szukam urządzenia HR...")
-        devices = await BleakScanner.discover(timeout=10)
-        found_device = next((d for d in devices if d.address.upper() == HR_MAC.upper()), None)
+    # Inicjalizacja wewnątrz try/finally zapewnia sprzątanie także po błędzie.
+    pixels = neopixel.NeoPixel(
+        PIXEL_PIN,
+        NUM_PIXELS,
+        brightness=BRIGHTNESS,
+        auto_write=False,
+        pixel_order=PIXEL_ORDER,
+    )
+    fill_active(BLACK)
+    pixels.show()
 
-        if found_device:
-            profile = HR_PROFILE
-            logging.info(f"Znaleziono urządzenie: {found_device.address} ({profile})")
-
+    try:
+        while True:
+            logging.info("Szukam czujnika tętna BLE...")
             try:
-                async with BleakClient(found_device.address) as client:
-                    await client.start_notify(
-                        "00002a37-0000-1000-8000-00805f9b34fb",
-                        lambda sender, data: asyncio.create_task(handle_hr(sender, data, profile))
-                    )
+                device = await find_hr_device()
+            except Exception:
+                logging.exception("Błąd skanowania BLE.")
+                await asyncio.sleep(RETRY_DELAY_SECONDS)
+                continue
 
+            if device is None:
+                logging.info("Nie znaleziono czujnika; ponawiam za %s s.", RETRY_DELAY_SECONDS)
+                await asyncio.sleep(RETRY_DELAY_SECONDS)
+                continue
+
+            logging.info("Znaleziono czujnik HR: %s", device.address)
+            try:
+                async with BleakClient(device) as client:
+                    await client.start_notify(HEART_RATE_CHARACTERISTIC, on_heart_rate)
+                    logging.info("Połączono; oczekuję na pomiary tętna.")
                     while client.is_connected:
-                        await asyncio.sleep(1)
-            except Exception as e:
-                logging.error(f"Błąd BLE: {type(e).__name__}: {e}")
+                        await asyncio.sleep(5)
+            except Exception:
+                logging.exception("Połączenie BLE przerwane lub nieudane.")
 
-        logging.warning("Rozłączono – ponawiam wyszukiwanie")
+            last_zone = None
+            await cancel_current_task()
+            fill_active(BLACK)
+            pixels.show()
+            logging.info("Rozłączono; ponawiam wyszukiwanie za %s s.", RETRY_DELAY_SECONDS)
+            await asyncio.sleep(RETRY_DELAY_SECONDS)
+    finally:
         last_zone = None
         await cancel_current_task()
-        await asyncio.sleep(5)
+        if pixels is not None:
+            try:
+                # Końcowe wyłączenie całego łańcucha dla bezpiecznego zamknięcia.
+                pixels.fill(BLACK)
+                pixels.show()
+            finally:
+                pixels.deinit()
+
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("Wyłączono")
-    finally:
-        # Uruchamia się także po błędzie, aby pasek nie został włączony.
-        pixels.fill((0, 0, 0))
-        pixels.show()
+        print("Wyłączono.")
+    except Exception:
+        logging.error("Aplikacja zakończyła się błędem.")
+        traceback.print_exc()
+        sys.exit(1)
