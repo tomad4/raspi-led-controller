@@ -24,7 +24,7 @@ ZONE_COLORS = {
 
 # === LOGGING ===
 logging.basicConfig(
-    filename="/home/pi/led/heart.log",
+    filename="/var/log/led-controller/heart.log",
     level=logging.DEBUG,
     format="%(asctime)s %(levelname)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S"

@@ -13,7 +13,7 @@ BRIGHTNESS = 0.6
 HR_MAC = "E0:48:24:B5:48:92"
 HR_CHAR_UUID = "00002a37-0000-1000-8000-00805f9b34fb"
 
-# === STREFY ===
+# === ZONES ===
 ZONE_COLORS = {
     "white":  (255, 255, 255),
     "blue":   (0, 102, 255),
@@ -43,7 +43,7 @@ def get_zone(hr):
 
 # === LOGGING ===
 logging.basicConfig(
-    filename="/home/pi/led/heart.log",
+    filename="/var/log/led-controller/heart.log",
     level=logging.DEBUG,
     format="%(asctime)s %(levelname)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S"
@@ -87,7 +87,7 @@ async def idle_animation():
     while True:
         for zone in ZONE_ORDER:
             color = tuple(max(c // 8, 1) for c in ZONE_COLORS[zone])
-            for _ in range(NUM_PIXELS * 2):  # przejście tam i z powrotem
+            for _ in range(NUM_PIXELS * 2):  # Move forward and back.
                 pixels.fill((0, 0, 0))
                 for i in range(15):
                     idx = pos + i

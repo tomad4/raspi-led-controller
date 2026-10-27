@@ -5,14 +5,14 @@ import time
 LED_COUNT = 57
 LED_PIN = board.D18
 BRIGHTNESS = 0.5
-DELAY = 2  # sekundy
+DELAY = 2  # Seconds.
 
 colors = [
-    (0, 0, 255),      # Blue – strefa 1
-    (0, 255, 0),      # Green – strefa 2
-    (255, 150, 0),    # Yellow – strefa 3
-    (255, 0, 0),      # Red – strefa 4
-    (255, 255, 255)   # White – strefa 5
+    (0, 0, 255),      # Blue — zone 1
+    (0, 255, 0),      # Green — zone 2
+    (255, 150, 0),    # Yellow — zone 3
+    (255, 0, 0),      # Red — zone 4
+    (255, 255, 255)   # White — zone 5
 ]
 
 pixels = neopixel.NeoPixel(LED_PIN, LED_COUNT, brightness=BRIGHTNESS, auto_write=False, pixel_order=neopixel.GRB)

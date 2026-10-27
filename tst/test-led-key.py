@@ -4,13 +4,13 @@ import neopixel
 pixels = neopixel.NeoPixel(board.D18, 2, brightness=0.4, auto_write=True)
 
 colors = {
-    "1": (0, 0, 255),     # niebieski
-    "2": (0, 255, 0),     # zielony
-    "3": (255, 255, 0),   # żółty
-    "4": (255, 165, 0),   # pomarańczowy
-    "5": (255, 0, 0),     # czerwony
-    "0": (255, 255, 255), # biały
-    "q": (0, 0, 0)        # wyłącz
+    "1": (0, 0, 255),     # Blue
+    "2": (0, 255, 0),     # Green
+    "3": (255, 255, 0),   # Yellow
+    "4": (255, 165, 0),   # Orange
+    "5": (255, 0, 0),     # Red
+    "0": (255, 255, 255), # White
+    "q": (0, 0, 0)        # Off
 }
 
 print("Wpisz numer strefy (1–5), 0 (biały), q (wyłącz). Ctrl+C kończy.")

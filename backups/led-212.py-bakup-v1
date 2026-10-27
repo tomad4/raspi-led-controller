@@ -7,7 +7,7 @@ import logging
 
 # === LOGGING ===
 logging.basicConfig(
-    filename="/home/pi/led/heart.log",
+    filename="/var/log/led-controller/heart.log",
     level=logging.DEBUG,
     format="%(asctime)s %(levelname)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S"
@@ -22,28 +22,28 @@ pixels = neopixel.NeoPixel(PIXEL_PIN, NUM_PIXELS, brightness=BRIGHTNESS, auto_wr
 # === DEVICE CONFIG ===
 # === DEVICE CONFIG ===
 HR_DEVICES = {
-    "E0:48:24:B5:48:92": "tomasz",  # Tomasz zegarek
-    "D3:14:22:AA:55:01": "tomasz",  # Tomasz pas
-    "C1:11:44:AA:22:BB": "kasia",   # Kasia zegarek
-    "F2:22:33:DD:11:CC": "kasia",   # Kasia pas
+    "E0:48:24:B5:48:92": "profile_1",  # Profile 1 watch
+    "D3:14:22:AA:55:01": "profile_1",  # Profile 1 heart-rate strap
+    "C1:11:44:AA:22:BB": "profile_2",  # Profile 2 watch
+    "F2:22:33:DD:11:CC": "profile_2",  # Profile 2 heart-rate strap
 }
 
 #HR_MAC_LIST = [
-#    "E0:48:24:B5:48:92",  # Tomasz zegarek
-#    "D3:14:22:AA:55:01",  # Tomasz pas
-#    "C1:11:44:AA:22:BB",  # Żona zegarek
-#    "F2:22:33:DD:11:CC",  # Żona pas
+#    "E0:48:24:B5:48:92",  # Profile 1 watch
+#    "D3:14:22:AA:55:01",  # Profile 1 heart-rate strap
+#    "C1:11:44:AA:22:BB",  # Profile 2 watch
+#    "F2:22:33:DD:11:CC",  # Profile 2 heart-rate strap
 #]
 
 #HR_PROFILE_MAP = {
-#    "E0:48:24:B5:48:92": "tomasz",
-#    "D3:14:22:AA:55:01": "tomasz",
+#    "E0:48:24:B5:48:92": "profile_1",
+#    "D3:14:22:AA:55:01": "profile_1",
 #    "C1:11:44:AA:22:BB": "kasia",
 #    "F2:22:33:DD:11:CC": "kasia",
 #}
 
 ZONE_SETS = {
-    "tomasz": {
+    "profile_1": {
         "white":  (255, 255, 255),
         "blue":   (0, 102, 255),
         "green":  (0, 204, 0),
@@ -62,7 +62,7 @@ ZONE_SETS = {
 }
 
 HR_ZONE_RANGES = {
-    "tomasz": [(93, "blue"), (111, "green"), (130, "yellow"), (148, "orange"), (167, "red"), (181, "blink")],
+    "profile_1": [(93, "blue"), (111, "green"), (130, "yellow"), (148, "orange"), (167, "red"), (181, "blink")],
     "kasia":   [(85, "blue"), (100, "green"), (120, "yellow"), (135, "orange"), (155, "red"), (180, "blink")],
 }
 

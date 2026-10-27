@@ -2,19 +2,19 @@ import board
 import neopixel
 import time
 
-# Ustawienia paska LED
+# LED strip settings
 NUM_PIXELS = 2
 BRIGHTNESS = 0.3
 pixels = neopixel.NeoPixel(board.D18, NUM_PIXELS, brightness=BRIGHTNESS, auto_write=False, pixel_order=neopixel.GRB)
 
-# Definicja kolorów stref
+# Zone color definitions
 colors = {
-    "1": (0, 0, 255),     # Niebieski
-    "2": (0, 255, 0),     # Zielony
-    "3": (255, 255, 0),   # Żółty
-    "4": (255, 165, 0),   # Pomarańczowy
-    "5": (255, 0, 0),     # Czerwony
-    "0": (255, 255, 255), # Biały
+    "1": (0, 0, 255),     # Blue
+    "2": (0, 255, 0),     # Green
+    "3": (255, 255, 0),   # Yellow
+    "4": (255, 165, 0),   # Orange
+    "5": (255, 0, 0),     # Red
+    "0": (255, 255, 255), # White
 }
 
 def fade_to_color(start_color, end_color, steps=30, delay=0.02):
@@ -38,7 +38,7 @@ print("Wciśnij klawisz 1–5 lub 0 (biały), q – wyjście")
 while True:
     user_input = input(">> ").strip()
     if user_input == "q":
-        fade_to_color(get_current_color(), (0, 0, 0))  # Fade out przy wyjściu
+        fade_to_color(get_current_color(), (0, 0, 0))  # Fade out on exit.
         break
     elif user_input in colors:
         fade_to_color(get_current_color(), colors[user_input])

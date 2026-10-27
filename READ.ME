@@ -1,0 +1,84 @@
+# LED Frame Controller — Raspberry Pi Zero 2 W
+
+This project controls a 212-pixel WS281x strip, reads data from BLE devices, and provides a lightweight web control panel.
+
+## Hardware and LED range
+
+- Raspberry Pi Zero 2 W running Raspberry Pi OS
+- 212-pixel WS281x strip; data line connected to GPIO 18
+- The frame uses LEDs **9–212**. LEDs 1–8 are outside the frame and are left untouched by the main controller.
+- GRB channel order; default brightness in normal modes: 50%
+- Heart-rate sensor: HRM Belt 28911, BLE address DF:44:B1:5D:B8:DC
+- Power mode scans for the Cycling Power or Fitness Machine Service (FTMS) BLE profile.
+
+Use a power supply sized for the strip's current draw. Connect the strip's ground to Raspberry Pi ground. Do not power a 212-pixel strip from a Raspberry Pi GPIO pin.
+
+## Install the controller on Raspberry Pi
+
+Install system packages and create the project directory:
+
+~~~sh
+sudo apt update
+sudo apt install -y python3-venv python3-pip
+sudo install -d /opt/raspi-led-controller
+~~~
+
+Copy the repository contents to /opt/raspi-led-controller, then install the Python dependencies:
+
+~~~sh
+sudo python3 -m venv --system-site-packages /opt/led-venv
+sudo /opt/led-venv/bin/pip install -r /opt/raspi-led-controller/requirements-rpi.txt
+~~~
+
+The systemd unit in systemd/ assumes these paths and runs the controller as root, which is required for GPIO/WS281x access.
+
+~~~sh
+sudo cp /opt/raspi-led-controller/systemd/led-212.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now led-212.service
+~~~
+
+After changing the controller files:
+
+~~~sh
+sudo systemctl restart led-212.service
+sudo journalctl -u led-212.service -f
+~~~
+
+The controller exposes its local API on 127.0.0.1:8765. The web panel proxies requests to it; the API itself is not exposed directly to the network.
+
+## Web panel
+
+The panel is static and does not require Node.js or npm. Start its server on Raspberry Pi:
+
+~~~sh
+cd /opt/raspi-led-controller/web
+./run-web.sh
+~~~
+
+Get the Raspberry Pi address with hostname -I, then open this address on a phone connected to the same network:
+
+~~~text
+http://RASPBERRY-PI-IP-ADDRESS:8000
+~~~
+
+Stop a manually started server with Ctrl+C. The web panel has no login, so use it on a trusted local network.
+
+## Panel modes
+
+- **0 — On/Off:** turns off the active LED range or resumes the last selected mode.
+- **1 — Heart Rate:** displays the heart-rate zone from the BLE chest strap.
+- **2 — Power:** reads instantaneous power over BLE Cycling Power or FTMS. The color transitions from blue at 100 W to red at 300 W; values outside this range are clamped to the ends of the scale.
+- **3 — Demo:** cycles through a few colors.
+- **4 — Night Light:** steady, dimmable color selected in the panel, with brightness from 1% to 25%.
+
+Power mode requires a trainer or power meter that exposes the standard BLE Cycling Power profile (0x1818) or FTMS (0x1826). The HRM Belt provides heart rate, not power. Night Light is a steady dim light; it does not analyze or mirror a TV picture.
+
+## Project layout
+
+- led-212.py — LED controller, BLE connections, and local API
+- web/ — static panel and lightweight API proxy server
+- systemd/led-212.service — controller systemd unit
+- requirements-rpi.txt — Python dependencies for Raspberry Pi
+- tst/ and backups/ — experiments, manual tests, and previous versions
+- rpi_ws281x/ — low-level library source and tools

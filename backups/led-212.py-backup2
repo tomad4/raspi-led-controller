@@ -7,7 +7,7 @@ import logging
 
 # === LOGGING ===
 logging.basicConfig(
-    filename="/home/pi/led/heart.log",
+    filename="/var/log/led-controller/heart.log",
     level=logging.INFO,
     format="%(asctime)s %(levelname)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S"

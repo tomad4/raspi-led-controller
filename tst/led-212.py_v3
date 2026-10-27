@@ -8,9 +8,9 @@ import logging
 
 previous_zone = None
 
-# Konfiguracja logowania
+# Logging configuration
 logging.basicConfig(
-    filename="/home/pi/led/heart.log",
+    filename="/var/log/led-controller/heart.log",
     level=logging.DEBUG,
     format="%(asctime)s %(levelname)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S"
@@ -73,9 +73,9 @@ async def wave_color_transition(target_color):
             pixels[j] = target_color
 
         pixels.show()
-        await asyncio.sleep(0.01)  # 10 ms na krok
+        await asyncio.sleep(0.01)  # 10 ms per step.
 
-    # Na koniec upewnij się, że wszystkie mają kolor docelowy
+    # Ensure all LEDs have the target color at the end.
     pixels.fill(target_color)
     pixels.show()
 
@@ -112,7 +112,7 @@ async def fade_to_color(target_color):
 async def handle_hr(_, data):
     global current_task, last_zone
 
-    # Dekodowanie HR
+    # Decode the heart-rate value.
     flags = data[0]
     hr = int.from_bytes(data[1:3], byteorder='little') if flags & 0x01 else data[1]
 
@@ -123,11 +123,11 @@ async def handle_hr(_, data):
 
     zone = get_zone(hr)
     if zone == last_zone:
-        return  # nie rób nic, jeśli strefa się nie zmieniła
+        return  # Do nothing if the zone has not changed.
 
     last_zone = zone
 
-    # Anuluj poprzedni efekt
+    # Cancel the previous effect.
     if current_task:
         current_task.cancel()
         try:
@@ -135,7 +135,7 @@ async def handle_hr(_, data):
         except:
             pass
 
-    # Start nowej animacji
+    # Start the new animation.
     if zone == "blink":
         current_task = asyncio.create_task(blinking_red(duration=2))
     else:
@@ -162,10 +162,10 @@ async def main():
             except Exception as e:
                 logging.error(f"Błąd BLE: {type(e).__name__}: {e}")
 
-        # Jeśli nie znaleziono HR lub nastąpiło rozłączenie
+        # No heart-rate device was found or the connection was lost.
         logging.warning("Rozłączono – wracam do idle")
 
-        last_zone = None  # zresetuj strefę
+        last_zone = None  # Reset the zone.
 
         if current_task:
             current_task.cancel()

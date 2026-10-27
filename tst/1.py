@@ -5,11 +5,11 @@ import time
 pixels = neopixel.NeoPixel(board.D18, 2, brightness=0.5, auto_write=False)
 
 colors = [
-    (0, 0, 255),    # niebieski – strefa 1
-    (0, 255, 0),    # zielony – strefa 2
-    (255, 255, 0),  # żółty – strefa 3
-    (255, 128, 0),  # pomarańcz – strefa 4
-    (255, 0, 0),    # czerwony – strefa 5
+    (0, 0, 255),    # Blue — zone 1
+    (0, 255, 0),    # Green — zone 2
+    (255, 255, 0),  # Yellow — zone 3
+    (255, 128, 0),  # Orange — zone 4
+    (255, 0, 0),    # Red — zone 5
 ]
 
 def fade_to(color, steps=50, delay=0.05):

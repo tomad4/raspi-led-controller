@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Animacja testowa dla ramki LED: diody 10–212, góra ramki 112–151.
+"""Test animation for the LED frame: LEDs 10–212, top section 112–151.
 
-Numery diod w komentarzach i komunikatach liczone są od 1. Diody 1–9
-(ogonek poza ramką) pozostają wyłączone.
+LED numbers in comments and messages are one-based. LEDs 1–9
+(the tail outside the frame) remain off.
 
-Uruchom w istniejącym venv na Raspberry Pi:
-    sudo /home/tomek/led-venv/bin/python /home/tomek/raspi-led-controller/test_frame_animation.py
+Run in the existing virtual environment on Raspberry Pi:
+    sudo /opt/led-venv/bin/python /opt/raspi-led-controller/tst/test_frame_animation.py
 
-Efekty głównej części zmieniają się co losowe 10–15 sekund. Górny odcinek
-ma niezależny, przesuwający się punkt świetlny. Ctrl+C kończy test.
+Main frame effects change at random intervals of 10–15 seconds. The top section
+has an independent moving light point. Press Ctrl+C to stop the test.
 """
 
 import colorsys
@@ -23,11 +23,11 @@ import neopixel
 
 
 NUM_PIXELS = 212
-PIXEL_PIN = board.D18  # GPIO18, fizyczny pin 12
+PIXEL_PIN = board.D18  # GPIO18, physical pin 12
 BRIGHTNESS = 0.12
 PIXEL_ORDER = neopixel.GRB
 
-FRAME_START = 10  # numeracja od 1; ogonek 1–9 jest poza ramką
+FRAME_START = 10  # One-based numbering; LEDs 1–9 are outside the frame.
 FRAME_END = 212
 TOP_START = 112
 TOP_END = 151
@@ -45,7 +45,7 @@ EFFECTS = (
 
 
 def hsv_color(hue, saturation=1.0, value=1.0):
-    """Zamień HSV znormalizowane do zakresu 0–1 na kolor RGB 0–255."""
+    """Convert normalized HSV values (0–1) to an RGB color (0–255)."""
     red, green, blue = colorsys.hsv_to_rgb(hue % 1.0, saturation, value)
     return round(red * 255), round(green * 255), round(blue * 255)
 
@@ -63,14 +63,14 @@ def frame_color(effect, led_number, elapsed, effect_duration):
         level = 0.12 + 0.55 * (0.5 + 0.5 * math.sin(phase * 2 * math.pi))
         return hsv_color(0.58, 0.9, level)
 
-    # Pasy RGB przesuwają się wzdłuż odcinka ramki.
+    # Move the RGB bands along the frame section.
     band = int((position / 12 + phase * 5) % 3)
     colors = ((255, 0, 0), (0, 255, 0), (0, 0, 255))
     return tuple(round(channel * 0.65) for channel in colors[band])
 
 
 def top_color(led_number, elapsed):
-    """Niezależny kometowy efekt dla górnego odcinka ramki 112–151."""
+    """Create an independent comet effect for the top frame section, LEDs 112–151."""
     top_length = TOP_END - TOP_START + 1
     position = (1 + math.sin(2 * math.pi * elapsed / 5.0)) * 0.5 * (top_length - 1)
     distance = abs((led_number - TOP_START) - position)
@@ -84,7 +84,7 @@ def top_color(led_number, elapsed):
 
 
 def draw_frame(pixels, effect, elapsed, effect_duration):
-    # Każda klatka zaczyna się od czerni, więc ogonek 1–9 pozostaje wyłączony.
+    # Start each frame with black so the tail (LEDs 1–9) stays off.
     pixels.fill(BLACK)
 
     for led_number in range(FRAME_START, FRAME_END + 1):
@@ -92,7 +92,7 @@ def draw_frame(pixels, effect, elapsed, effect_duration):
             effect, led_number, elapsed, effect_duration
         )
 
-    # Górne 40 diod dostaje własny efekt, niezależny od animacji reszty ramki.
+    # Give the top 40 LEDs an effect independent of the rest of the frame.
     for led_number in range(TOP_START, TOP_END + 1):
         pixels[led_number - 1] = top_color(led_number, elapsed)
 

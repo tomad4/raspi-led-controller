@@ -7,7 +7,7 @@ import logging
 
 # === LOGGING SETUP ===
 logging.basicConfig(
-    filename="/home/pi/led/hr-debug.log",
+    filename="/var/log/led-controller/hr-debug.log",
     level=logging.DEBUG,
     format="%(asctime)s %(levelname)s: %(message)s",
 )
@@ -82,9 +82,9 @@ async def main():
 
                     async def handle_hr(_, data):
                         nonlocal current_task
-                        print(f"Tętno RAW: {repr(hr)}")  # Debug typu i wartości
+                        print(f"Tętno RAW: {repr(hr)}")  # Debug the type and value.
                         test_color = get_color(hr)
-                        print(f"Tętno: {hr} -> kolor: {test_color}")  # Debug interpretacji koloru
+                        print(f"Tętno: {hr} -> kolor: {test_color}")  # Debug the color interpretation.
 
                         logging.debug(f"RAW HR DATA: {list(data)}")
 
@@ -129,7 +129,7 @@ async def main():
             except Exception as e:
                 print(f"Błąd BLE: {type(e).__name__}: {e}")
 
-        # Wróć do idle
+        # Return to idle.
         print("Brak zegarka, przełączam w tryb idle...")
         if current_task:
             current_task.cancel()

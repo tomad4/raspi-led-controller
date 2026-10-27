@@ -3,6 +3,7 @@
 *.log.*
 logs/
 log/
+*.pid
 
 # Python cache and virtual environments
 __pycache__/
@@ -11,6 +12,19 @@ __pycache__/
 .venv/
 venv/
 env/
+ENV/
+.python-version
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+build/
+dist/
+*.egg-info/
 
 # Local configuration and secrets
 .env
@@ -24,17 +38,25 @@ secrets/
 node_modules/
 web/node_modules/
 web/dist/
-dist/
+web/.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # Compiled native artifacts
 *.o
 *.so
 *.so.*
+*.a
 *.pyc
 *.sconsign.dblite
+/rpi_ws281x/test
+/rpi_ws281x/version
 
 # OS and editor files
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
+*.swp
+*.swo

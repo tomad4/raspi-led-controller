@@ -1,5 +1,5 @@
 #!/bin/sh
-# Serwuje lekki, statyczny panel bez Node.js, npm ani procesu budowania.
+# Serve the lightweight static panel without Node.js, npm, or a build step.
 set -eu
 
 WEB_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)

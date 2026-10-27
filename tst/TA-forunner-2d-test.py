@@ -1,4 +1,4 @@
-"""Test tętna z jednego zegarka Garmin Forerunner na dwóch diodach NeoPixel."""
+"""Test heart-rate readings from a Garmin Forerunner on two NeoPixel LEDs."""
 
 import asyncio
 
@@ -7,36 +7,36 @@ import neopixel
 from bleak import BleakClient, BleakScanner
 
 
-# Raspberry Pi Zero 2 W, GPIO18, dwie diody NeoPixel.
+# Raspberry Pi Zero 2 W, GPIO18, two NeoPixel LEDs.
 NUM_PIXELS = 2
 PIXEL_PIN = board.D18
 BRIGHTNESS = 0.3
 
-# UUID z ble-finder.py był identyfikatorem lokalnym Maca.
-# Na Raspberry Pi zegarek jest wybierany po nazwie BLE.
+# The UUID reported by ble-finder.py was a local Mac identifier.
+# On Raspberry Pi, the watch is selected by its BLE name.
 FORERUNNER_NAME = "Forerunner"
 
 HEART_RATE_CHARACTERISTIC = "00002a37-0000-1000-8000-00805f9b34fb"
 SCAN_TIMEOUT_SECONDS = 10
 RETRY_DELAY_SECONDS = 3
 
-# Każde 10 BPM ma osobny kolor. Obie diody pokazują ten sam kolor.
-# Wartości są dolną granicą zakresu: np. 80 oznacza 80–89 BPM.
+# Each 10 BPM interval has its own color. Both LEDs show the same color.
+# Values are lower bounds: for example, 80 represents 80–89 BPM.
 HR_COLORS = {
-    0: (40, 40, 40),       # poniżej 60: biały
-    60: (0, 0, 255),       # 60–69: niebieski
-    70: (0, 128, 255),     # 70–79: błękitny
-    80: (0, 255, 180),     # 80–89: turkusowy
-    90: (0, 200, 0),       # 90–99: zielony
-    100: (128, 255, 0),    # 100–109: jasnozielony
-    110: (255, 255, 0),    # 110–119: żółty
-    120: (255, 180, 0),    # 120–129: złoty
-    130: (255, 100, 0),    # 130–139: pomarańczowy
-    140: (255, 0, 0),      # 140–149: czerwony
-    150: (255, 0, 100),    # 150–159: różowoczerwony
-    160: (180, 0, 255),    # 160–169: fioletowy
-    170: (100, 0, 255),    # 170–179: ciemnofioletowy
-    180: (255, 255, 255),  # 180+: biały
+    0: (40, 40, 40),       # below 60: white
+    60: (0, 0, 255),       # 60–69: blue
+    70: (0, 128, 255),     # 70–79: light blue
+    80: (0, 255, 180),     # 80–89: turquoise
+    90: (0, 200, 0),       # 90–99: green
+    100: (128, 255, 0),    # 100–109: light green
+    110: (255, 255, 0),    # 110–119: yellow
+    120: (255, 180, 0),    # 120–129: gold
+    130: (255, 100, 0),    # 130–139: orange
+    140: (255, 0, 0),      # 140–149: red
+    150: (255, 0, 100),    # 150–159: pink-red
+    160: (180, 0, 255),    # 160–169: purple
+    170: (100, 0, 255),    # 170–179: dark purple
+    180: (255, 255, 255),  # 180+: white
 }
 
 pixels = neopixel.NeoPixel(
@@ -48,7 +48,7 @@ pixels = neopixel.NeoPixel(
 
 
 def color_for_heart_rate(hr):
-    """Zwróć kolor przypisany do przedziału dziesięciu BPM."""
+    """Return the color assigned to a ten-BPM interval."""
     lower_bound = (hr // 10) * 10
     if lower_bound < 60:
         lower_bound = 0
@@ -57,7 +57,7 @@ def color_for_heart_rate(hr):
 
 
 def show_heart_rate(data, previous_band):
-    """Odczytaj standardową charakterystykę HR i zmień kolor przy nowym progu."""
+    """Read the standard HR characteristic and change color when the band changes."""
     if len(data) < 2:
         print("Odebrano niepełny pomiar tętna.")
         return previous_band

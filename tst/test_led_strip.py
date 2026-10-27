@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Niezależny, ograniczony test taśmy NeoPixel 212 LED na Raspberry Pi.
+"""Independent, low-brightness test for a 212-LED NeoPixel strip on Raspberry Pi.
 
-Uruchom w istniejącym venv (GPIO18 wymaga roota na Raspberry Pi):
-    sudo /home/tomek/led-venv/bin/python /home/tomek/raspi-led-controller/test_led_strip.py
+Run in the existing virtual environment (GPIO18 requires root on Raspberry Pi):
+    sudo /opt/led-venv/bin/python /opt/raspi-led-controller/tst/test_led_strip.py
 
-Skrypt nie korzysta z BLE ani głównej aplikacji. Jasność jest ograniczona do 12%.
+This script does not use BLE or the main application. Brightness is limited to 12%.
 """
 
 import importlib.metadata
@@ -17,7 +17,7 @@ import neopixel
 
 
 NUM_PIXELS = 212
-PIXEL_PIN = board.D18  # GPIO18, fizyczny pin 12
+PIXEL_PIN = board.D18  # GPIO18, physical pin 12
 BRIGHTNESS = 0.12
 PIXEL_ORDER = neopixel.GRB
 PAUSE_SECONDS = 1.0

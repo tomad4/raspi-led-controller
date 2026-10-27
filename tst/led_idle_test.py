@@ -5,11 +5,11 @@ import neopixel
 
 NUM_PIXELS = 212
 PIXEL_PIN = board.D18
-BRIGHTNESS = 0.3  # niższa jasność do testów
+BRIGHTNESS = 0.3  # Reduced brightness for testing.
 
 pixels = neopixel.NeoPixel(PIXEL_PIN, NUM_PIXELS, brightness=BRIGHTNESS, auto_write=False)
 
-# --- Efekty Idle ---
+# --- Idle effects ---
 
 async def idle_mode_1():
     pos = 0
@@ -80,7 +80,7 @@ async def idle_mode_4():
         if pos + segment_len >= NUM_PIXELS or pos <= 0:
             direction *= -1
 
-# --- Główna funkcja ---
+# --- Main function ---
 
 async def main():
     modes = {

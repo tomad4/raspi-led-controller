@@ -70,7 +70,15 @@ h1 { margin: 10px 0 0; font-size: clamp(34px, 9vw, 48px); line-height: 1.05; let
 .mode-copy small { color: var(--muted); font-size: 14px; }
 .mode-indicator { width: 10px; height: 10px; margin-left: auto; border-radius: 50%; background: #566174; }
 .mode-button[aria-pressed="true"] .mode-indicator { background: var(--accent); box-shadow: 0 0 14px #79d6c388; }
+.mode-button.power-off[aria-pressed="true"] { border-color: #ff7373; }
+.mode-button.power-off[aria-pressed="true"] .mode-number { color: #ff7373; }
+.mode-button.power-off[aria-pressed="true"] .mode-indicator { background: #ff7373; }
 .status { min-height: 24px; margin: 22px 0 0; color: var(--accent); font-size: 15px; }
+.night-controls { display: grid; gap: 12px; margin-top: 14px; padding: 16px; border: 1px solid #30394a; border-radius: 16px; background: var(--surface); }
+.night-controls[hidden] { display: none; }
+.night-controls label { display: flex; align-items: center; justify-content: space-between; gap: 16px; color: var(--muted); font-size: 14px; }
+.night-controls input[type="color"] { width: 54px; height: 42px; padding: 3px; border: 1px solid #465064; border-radius: 10px; background: transparent; }
+.night-controls input[type="range"] { width: min(62%, 260px); min-height: 44px; accent-color: var(--accent); }
 .note { margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
 footer { margin-top: 36px; color: #778196; font-size: 12px; text-align: center; }
 

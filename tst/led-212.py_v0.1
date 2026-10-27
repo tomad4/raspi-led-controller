@@ -98,7 +98,7 @@ async def main():
             except Exception as e:
                 print(f"Błąd BLE: {type(e).__name__}: {e}")
 
-        # Wróć do idle
+        # Return to idle.
         print("Brak zegarka, przełączam w tryb idle...")
         if current_task:
             current_task.cancel()

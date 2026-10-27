@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Ręcznie zapal wskazaną diodę lub zakres na taśmie 212 NeoPixel.
+"""Manually light a selected LED or range on a 212-pixel NeoPixel strip.
 
-Przykłady (numery diod są liczone od 1):
-    sudo /home/tomek/led-venv/bin/python /home/tomek/raspi-led-controller/light.py -1
-    sudo /home/tomek/led-venv/bin/python /home/tomek/raspi-led-controller/light.py -1_3 -g
-    sudo /home/tomek/led-venv/bin/python /home/tomek/raspi-led-controller/light.py -20 -r
+Examples (LED numbers are one-based):
+    sudo /opt/led-venv/bin/python /opt/raspi-led-controller/tst/light.py -1
+    sudo /opt/led-venv/bin/python /opt/raspi-led-controller/tst/light.py -1_3 -g
+    sudo /opt/led-venv/bin/python /opt/raspi-led-controller/tst/light.py -20 -r
 
-Bez flagi koloru używany jest czerwony. Diody pozostają zapalone do Ctrl+C.
-Na Raspberry Pi sterowanie GPIO wymaga uruchomienia przez sudo.
+Red is used when no color flag is given. LEDs stay on until Ctrl+C.
+On Raspberry Pi, GPIO control requires running with sudo.
 """
 
 import re
@@ -20,7 +20,7 @@ import neopixel
 
 
 NUM_PIXELS = 212
-PIXEL_PIN = board.D18  # GPIO18, fizyczny pin 12
+PIXEL_PIN = board.D18  # GPIO18, physical pin 12
 BRIGHTNESS = 0.12
 PIXEL_ORDER = neopixel.GRB
 COLORS = {
