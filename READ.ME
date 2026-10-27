@@ -30,30 +30,35 @@ sudo python3 -m venv --system-site-packages /opt/led-venv
 sudo /opt/led-venv/bin/pip install -r /opt/raspi-led-controller/requirements-rpi.txt
 ~~~
 
-The systemd unit in systemd/ assumes these paths and runs the controller as root, which is required for GPIO/WS281x access.
+The systemd units in systemd/ assume these paths. The LED controller runs as root, which is required for GPIO/WS281x access. The web panel runs as the unprivileged www-data user.
 
 ~~~sh
-sudo cp /opt/raspi-led-controller/systemd/led-212.service /etc/systemd/system/
+sudo cp /opt/raspi-led-controller/systemd/led-212.service /opt/raspi-led-controller/systemd/led-web.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now led-212.service
+sudo systemctl enable --now led-web.service
 ~~~
 
-After changing the controller files:
+Enabling led-web.service also starts led-212.service. Both services start at boot. To check their status and logs:
+
+~~~sh
+sudo systemctl status led-212.service led-web.service
+sudo journalctl -u led-212.service -u led-web.service -f
+~~~
+
+After changing the LED controller, restart it. The web service is restarted with it:
 
 ~~~sh
 sudo systemctl restart led-212.service
-sudo journalctl -u led-212.service -f
 ~~~
 
 The controller exposes its local API on 127.0.0.1:8765. The web panel proxies requests to it; the API itself is not exposed directly to the network.
 
 ## Web panel
 
-The panel is static and does not require Node.js or npm. Start its server on Raspberry Pi:
+The panel is static and does not require Node.js or npm. The led-web.service unit starts its server automatically. To restart the panel after changing its files:
 
 ~~~sh
-cd /opt/raspi-led-controller/web
-./run-web.sh
+sudo systemctl restart led-web.service
 ~~~
 
 Get the Raspberry Pi address with hostname -I, then open this address on a phone connected to the same network:
@@ -78,7 +83,7 @@ Power mode requires a trainer or power meter that exposes the standard BLE Cycli
 
 - led-212.py — LED controller, BLE connections, and local API
 - web/ — static panel and lightweight API proxy server
-- systemd/led-212.service — controller systemd unit
+- systemd/led-212.service and systemd/led-web.service — controller and web systemd units
 - requirements-rpi.txt — Python dependencies for Raspberry Pi
 - tst/ and backups/ — experiments, manual tests, and previous versions
 - rpi_ws281x/ — low-level library source and tools
