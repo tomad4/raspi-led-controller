@@ -15,30 +15,21 @@ Use a power supply sized for the strip's current draw. Connect the strip's groun
 
 ## Install the controller on Raspberry Pi
 
-Install system packages and create the project directory:
+Create the project directory and copy the repository contents there:
 
 ~~~sh
-sudo apt update
-sudo apt install -y python3-venv python3-pip
 sudo install -d /opt/raspi-led-controller
 ~~~
 
-Copy the repository contents to /opt/raspi-led-controller, then install the Python dependencies:
+After copying the repository contents to /opt/raspi-led-controller, run the installer. It creates the virtual environment, installs Python dependencies, installs both systemd units, and enables and starts the LED controller and web panel:
 
 ~~~sh
-sudo python3 -m venv --system-site-packages /opt/led-venv
-sudo /opt/led-venv/bin/pip install -r /opt/raspi-led-controller/requirements-rpi.txt
+sudo /opt/raspi-led-controller/systemd/install-preq.sh
 ~~~
 
 The systemd units in systemd/ assume these paths. The LED controller runs as root, which is required for GPIO/WS281x access. The web panel runs as the unprivileged www-data user.
 
-~~~sh
-sudo cp /opt/raspi-led-controller/systemd/led-212.service /opt/raspi-led-controller/systemd/led-web.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now led-web.service
-~~~
-
-Enabling led-web.service also starts led-212.service. Both services start at boot. To check their status and logs:
+Both services start at boot. To check their status and logs:
 
 ~~~sh
 sudo systemctl status led-212.service led-web.service
