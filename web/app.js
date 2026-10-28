@@ -9,6 +9,8 @@ const nightColor = document.getElementById("night-color");
 const nightBrightness = document.getElementById("night-brightness");
 const toggleTitle = document.getElementById("toggle-title");
 const toggleCopy = document.getElementById("toggle-copy");
+const restartSshButton = document.getElementById("restart-ssh");
+const serviceStatus = document.getElementById("service-status");
 let hrDeviceOptions = "";
 
 function updateHrDevices(devices, selectedDevice) {
@@ -100,6 +102,25 @@ buttons.forEach((button) => {
 });
 
 hrDevice.addEventListener("change", () => sendControl("hr"));
+restartSshButton.addEventListener("click", async () => {
+  if (!window.confirm("Zrestartować usługę SSH? Aktywne połączenia SSH mogą zostać przerwane.")) return;
+  restartSshButton.disabled = true;
+  serviceStatus.textContent = "Restartuję SSH…";
+  try {
+    const response = await fetch("/api/restart-ssh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Nie udało się zrestartować SSH.");
+    serviceStatus.textContent = data.message;
+  } catch (error) {
+    serviceStatus.textContent = error.message || "Brak połączenia z panelem.";
+  } finally {
+    restartSshButton.disabled = false;
+  }
+});
 nightColor.addEventListener("input", () => {
   if (!nightControls.hidden) sendControl("night");
 });

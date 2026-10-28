@@ -3,9 +3,11 @@
 
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+import json
 import logging
 import os
 import socket
+import subprocess
 import sys
 import time
 from urllib.error import HTTPError, URLError
@@ -105,8 +107,42 @@ class PageHandler(SimpleHTTPRequestHandler):
     def do_POST(self):
         if self.path == "/api/control":
             self.proxy_api("POST", "/control")
+        elif self.path == "/api/restart-ssh":
+            self.restart_ssh()
         else:
             self.send_error(404)
+
+    def restart_ssh(self):
+        """Restart only the SSH systemd unit through the narrowly scoped sudo rule."""
+        try:
+            result = subprocess.run(
+                ["/usr/bin/sudo", "-n", "/usr/bin/systemctl", "restart", "ssh.service"],
+                capture_output=True,
+                text=True,
+                timeout=20,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            logging.error("Nie udało się zrestartować ssh.service: %s", error)
+            self.send_json(503, {"error": "Nie udało się zrestartować usługi SSH."})
+            return
+
+        if result.returncode != 0:
+            logging.error("Restart ssh.service nie powiódł się: %s", result.stderr.strip())
+            self.send_json(503, {"error": "Restart SSH nie powiódł się. Sprawdź uprawnienia i log systemd."})
+            return
+
+        logging.info("Zrestartowano ssh.service z panelu webowego.")
+        self.send_json(200, {"message": "Usługa SSH została zrestartowana."})
+
+    def send_json(self, status, data):
+        response_body = json.dumps(data, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(response_body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(response_body)
 
 
 if len(sys.argv) != 3:

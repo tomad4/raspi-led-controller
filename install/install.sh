@@ -36,8 +36,14 @@ if [ ! -f "$SOURCE_DIR/led-212.py" ] \
     || [ ! -f "$SOURCE_DIR/requirements-rpi.txt" ] \
     || [ ! -f "$SOURCE_DIR/web/serve.py" ] \
     || [ ! -f "$SOURCE_DIR/install/led-212.service" ] \
-    || [ ! -f "$SOURCE_DIR/install/led-web.service" ]; then
+    || [ ! -f "$SOURCE_DIR/install/led-web.service" ] \
+    || [ ! -f "$SOURCE_DIR/install/led-web-sudoers" ]; then
     echo "The project source is incomplete: $SOURCE_DIR" >&2
+    exit 1
+fi
+
+if ! visudo -cf "$SOURCE_DIR/install/led-web-sudoers" >/dev/null; then
+    echo "Invalid sudoers rule: $SOURCE_DIR/install/led-web-sudoers" >&2
     exit 1
 fi
 
@@ -125,6 +131,7 @@ else
 fi
 
 echo "Installing changed systemd service definitions..."
+install -m 0440 "$SOURCE_DIR/install/led-web-sudoers" /etc/sudoers.d/raspi-led-web-ssh
 if [ "$MODE" = install ] || [ "$LED_UNIT_CHANGED" -eq 1 ]; then
     install -m 0644 "$PROJECT_DIR/install/led-212.service" /etc/systemd/system/led-212.service
 fi

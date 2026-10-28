@@ -80,6 +80,8 @@ The panel is static and does not require Node.js or npm. The led-web.service uni
 sudo systemctl restart led-web.service
 ~~~
 
+The panel also has a **Restart SSH** button. The installer grants `www-data` permission to run only `systemctl restart ssh.service`; it does not grant general administrative access. Deploy the update with the usual installer command to install this rule.
+
 Get the Raspberry Pi address with hostname -I, then open this address on a phone connected to the same network:
 
 ~~~text

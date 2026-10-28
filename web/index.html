@@ -63,6 +63,11 @@
           <label>Jasność <input id="night-brightness" type="range" min="0.01" max="0.25" step="0.01" value="0.08" /></label>
         </div>
         <p class="note">Tryb Power wyszukuje automatycznie czujniki BLE Cycling Power i FTMS.</p>
+        <section class="service-controls" aria-labelledby="service-title">
+          <h2 id="service-title">Usługi systemowe</h2>
+          <button class="service-button" id="restart-ssh" type="button">Restart SSH</button>
+          <p class="service-status" id="service-status" role="status" aria-live="polite"></p>
+        </section>
       </section>
       <footer>Raspberry Pi · 212 diod</footer>
     </main>
