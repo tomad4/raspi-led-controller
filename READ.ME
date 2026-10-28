@@ -39,7 +39,7 @@ The update mode expects the initial installation to exist and `rsync` to be inst
 
 Edit settings/strip.json to configure the strip length, GPIO pin, pixel order, brightness, active LED range, and named frame segments. LED ranges are one-based and inclusive. Empty side segments can be filled in once their physical LED ranges are mapped. The controller uses the configured top segment for its waiting and running-light animations.
 
-Copy settings/connections.example.json to settings/connections.json and add the device addresses or advertised name patterns for your BLE sensors. The current COOSPO H6 profile uses BLE address D3:14:22:AA:55:01. The local connections.json is excluded from Git. If it is absent, the example profiles are used. The web panel builds its device selector from the profiles returned by the controller.
+Copy settings/connections.example.json to settings/connections.json and add the device addresses or advertised name patterns for your BLE sensors. The local connections.json is excluded from Git. If it is absent, the example profiles are used. The web panel builds its device selector from the profiles returned by the controller.
 
 BLE addresses are not authentication credentials, but you can encrypt this settings file with Fernet. The cryptography dependency is installed with the Raspberry Pi requirements. Generate a key outside the project, encrypt the settings, and remove the plaintext file:
 
