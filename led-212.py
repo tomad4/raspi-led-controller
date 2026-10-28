@@ -10,6 +10,7 @@ import socket
 import sys
 
 from app_logging import configure_app_logging
+from settings.config import CONNECTION_SETTINGS, STRIP_SETTINGS
 
 configure_app_logging("led-212")
 
@@ -18,44 +19,50 @@ import neopixel
 from bleak import BleakClient, BleakScanner
 
 
-# Hardware configuration
-NUM_PIXELS = 212
-PIXEL_PIN = board.D18
-BRIGHTNESS = 0.5
-PIXEL_ORDER = neopixel.GRB
-
-# LED numbers are one-based. The program animates LEDs 9–212 inclusive.
-ACTIVE_START = 8  # Python index for LED 9
-ACTIVE_STOP = NUM_PIXELS  # exclusive end index: 212
-ANIMATION_STEP = 4  # Update less often to reduce CPU load.
-TOP_START = 111  # Python index for LED 112
-TOP_STOP = 151  # Exclusive end index: LED 151
-TOP_RUNNER_LENGTH = 3
-TOP_RUNNER_DELAY = 0.08
+# Hardware settings are editable in settings/strip.json. Config ranges use
+# one-based, inclusive LED numbers; these indexes use Python's zero-based form.
+NUM_PIXELS = int(STRIP_SETTINGS["pixel_count"])
+PIXEL_PIN = getattr(board, f"D{int(STRIP_SETTINGS['gpio_pin'])}")
+BRIGHTNESS = float(STRIP_SETTINGS["brightness"])
+PIXEL_ORDER = getattr(neopixel, STRIP_SETTINGS["pixel_order"])
+ACTIVE_START = int(STRIP_SETTINGS["active_range"][0]) - 1
+ACTIVE_STOP = int(STRIP_SETTINGS["active_range"][1])
+TOP_RANGE = STRIP_SETTINGS["segments"].get("top", [112, 151])
+TOP_START = int(TOP_RANGE[0]) - 1
+TOP_STOP = int(TOP_RANGE[1])
+ANIMATION_STEP = int(STRIP_SETTINGS["animation"]["step"])
+TOP_RUNNER_LENGTH = int(STRIP_SETTINGS["animation"]["runner_length"])
+TOP_RUNNER_DELAY = float(STRIP_SETTINGS["animation"]["runner_delay_seconds"])
 WHITE = (255, 255, 255)
 RED = (255, 0, 0)
 BLUE = (0, 0, 255)
 
-HR_MAC = "DF:44:B1:5D:B8:DC"  # HRM Belt 28911
+BLE_SETTINGS = CONNECTION_SETTINGS.get("ble", {})
 HR_DEVICE_PROFILES = {
-    "forerunner": {"label": "Garmin Forerunner", "names": ("forerunner", "garmin")},
-    "decathlon": {
-        "label": "Decathlon HR belt",
-        "address": HR_MAC.upper(),
-        "names": ("decathlon", "hrm belt", "hrm belt 28911"),
-    },
-    "coospo": {
-        "label": "COOSPO HR belt",
-        "names": ("coospo", "h6", "h808s", "h9z", "hw807", "hw706"),
-    },
+    profile_id: {
+        **profile,
+        "names": tuple(profile.get("names", ())),
+        **({"address": profile["address"].upper()} if profile.get("address") else {}),
+    }
+    for profile_id, profile in CONNECTION_SETTINGS.get("heart_rate_profiles", {}).items()
 }
-HEART_RATE_CHARACTERISTIC = "00002a37-0000-1000-8000-00805f9b34fb"
-CYCLING_POWER_SERVICE = "00001818-0000-1000-8000-00805f9b34fb"
-FTMS_SERVICE = "00001826-0000-1000-8000-00805f9b34fb"
-CYCLING_POWER_CHARACTERISTIC = "00002a63-0000-1000-8000-00805f9b34fb"
-INDOOR_BIKE_DATA_CHARACTERISTIC = "00002ad2-0000-1000-8000-00805f9b34fb"
-SCAN_TIMEOUT_SECONDS = 10
-RETRY_DELAY_SECONDS = 5
+if not HR_DEVICE_PROFILES:
+    raise ValueError("No heart-rate profiles configured in settings/connections.json")
+HEART_RATE_CHARACTERISTIC = BLE_SETTINGS.get(
+    "heart_rate_characteristic", "00002a37-0000-1000-8000-00805f9b34fb"
+)
+CYCLING_POWER_SERVICE = BLE_SETTINGS.get(
+    "cycling_power_service", "00001818-0000-1000-8000-00805f9b34fb"
+)
+FTMS_SERVICE = BLE_SETTINGS.get("ftms_service", "00001826-0000-1000-8000-00805f9b34fb")
+CYCLING_POWER_CHARACTERISTIC = BLE_SETTINGS.get(
+    "cycling_power_characteristic", "00002a63-0000-1000-8000-00805f9b34fb"
+)
+INDOOR_BIKE_DATA_CHARACTERISTIC = BLE_SETTINGS.get(
+    "indoor_bike_data_characteristic", "00002ad2-0000-1000-8000-00805f9b34fb"
+)
+SCAN_TIMEOUT_SECONDS = int(BLE_SETTINGS.get("scan_timeout_seconds", 10))
+RETRY_DELAY_SECONDS = int(BLE_SETTINGS.get("retry_delay_seconds", 5))
 CONTROL_HOST = "127.0.0.1"
 CONTROL_PORT = 8765
 
@@ -74,7 +81,7 @@ current_task = None
 last_zone = None
 active_mode = "hr"
 last_active_mode = "hr"
-hr_device_choice = "decathlon"
+hr_device_choice = next(iter(HR_DEVICE_PROFILES))
 latest_hr = None
 latest_power = None
 night_color = (255, 150, 80)
@@ -129,6 +136,10 @@ def get_status():
         "mode": active_mode,
         "hr_device": hr_device_choice,
         "hr_device_label": HR_DEVICE_PROFILES[hr_device_choice]["label"],
+        "hr_devices": [
+            {"id": device_id, "label": profile["label"]}
+            for device_id, profile in HR_DEVICE_PROFILES.items()
+        ],
         "hr": latest_hr,
         "power_w": latest_power,
         "hr_connected": hr_connected,
@@ -478,13 +489,13 @@ async def find_hr_device(device_choice, timeout=SCAN_TIMEOUT_SECONDS):
         nonlocal result
         name = (advertisement_data.local_name or device.name or "").lower()
         address = device.address.upper()
-        expected_address = profile.get("address")
+        expected_address = profile.get("address", "").upper()
         matching_name = any(
             token in name if token in {"forerunner", "garmin", "decathlon", "coospo", "hrm belt"}
             else re.search(rf"(?<![a-z0-9]){re.escape(token)}(?![a-z0-9])", name)
             for token in profile["names"]
         )
-        if address == expected_address or matching_name:
+        if (expected_address and address == expected_address) or matching_name:
             result = device
             found.set()
 
@@ -507,8 +518,12 @@ async def find_power_device(timeout=SCAN_TIMEOUT_SECONDS):
 
     def on_advertisement(device, advertisement_data):
         nonlocal result
-        advertised = " ".join(advertisement_data.service_uuids or []).lower()
-        if "00001818" in advertised or "00001826" in advertised:
+        advertised = " ".join(
+            service.lower().replace("-", "") for service in (advertisement_data.service_uuids or [])
+        )
+        power_uuid = CYCLING_POWER_SERVICE.lower().replace("-", "")[:8]
+        ftms_uuid = FTMS_SERVICE.lower().replace("-", "")[:8]
+        if power_uuid in advertised or ftms_uuid in advertised:
             result = device
             found.set()
 

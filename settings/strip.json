@@ -1,0 +1,18 @@
+{
+  "pixel_count": 212,
+  "gpio_pin": 18,
+  "brightness": 0.5,
+  "pixel_order": "GRB",
+  "active_range": [9, 212],
+  "segments": {
+    "top": [112, 151],
+    "left": [],
+    "right": [],
+    "bottom": []
+  },
+  "animation": {
+    "step": 4,
+    "runner_length": 3,
+    "runner_delay_seconds": 0.08
+  }
+}

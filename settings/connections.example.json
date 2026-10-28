@@ -1,0 +1,18 @@
+{
+  "ble": {
+    "heart_rate_characteristic": "00002a37-0000-1000-8000-00805f9b34fb",
+    "cycling_power_service": "00001818-0000-1000-8000-00805f9b34fb",
+    "ftms_service": "00001826-0000-1000-8000-00805f9b34fb",
+    "cycling_power_characteristic": "00002a63-0000-1000-8000-00805f9b34fb",
+    "indoor_bike_data_characteristic": "00002ad2-0000-1000-8000-00805f9b34fb",
+    "scan_timeout_seconds": 10,
+    "retry_delay_seconds": 5
+  },
+  "heart_rate_profiles": {
+    "coospo": {
+      "label": "COOSPO H6",
+      "address": "",
+      "names": ["coospo", "h6"]
+    }
+  }
+}

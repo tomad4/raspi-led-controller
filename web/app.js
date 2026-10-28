@@ -9,6 +9,24 @@ const nightColor = document.getElementById("night-color");
 const nightBrightness = document.getElementById("night-brightness");
 const toggleTitle = document.getElementById("toggle-title");
 const toggleCopy = document.getElementById("toggle-copy");
+let hrDeviceOptions = "";
+
+function updateHrDevices(devices, selectedDevice) {
+  if (!Array.isArray(devices) || devices.length === 0) return;
+  const signature = JSON.stringify(devices);
+  if (signature !== hrDeviceOptions) {
+    hrDevice.replaceChildren(...devices.map((device) => {
+      const option = document.createElement("option");
+      option.value = device.id;
+      option.textContent = device.label;
+      return option;
+    }));
+    hrDeviceOptions = signature;
+  }
+  if (devices.some((device) => device.id === selectedDevice)) {
+    hrDevice.value = selectedDevice;
+  }
+}
 
 function selectMode(mode) {
   buttons.forEach((button) => {
@@ -44,7 +62,7 @@ async function refreshStatus() {
     if (!response.ok) throw new Error("Sterownik LED jest niedostępny.");
     const data = await response.json();
     selectMode(data.mode);
-    if (data.hr_device) hrDevice.value = data.hr_device;
+    updateHrDevices(data.hr_devices, data.hr_device);
     status.textContent = describeState(data);
     if (data.night_color) nightColor.value = data.night_color;
     if (data.night_brightness) nightBrightness.value = data.night_brightness;
@@ -70,6 +88,7 @@ async function sendControl(mode) {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Nie udało się zmienić trybu.");
     selectMode(data.mode);
+    updateHrDevices(data.hr_devices, data.hr_device);
     status.textContent = describeState(data);
   } catch (error) {
     status.textContent = error.message || "Brak połączenia ze sterownikiem LED.";

@@ -33,6 +33,8 @@ dist/
 *.pem
 *.key
 secrets/
+settings/connections.json
+settings/connections.key
 
 # Node.js / frontend build artifacts
 node_modules/

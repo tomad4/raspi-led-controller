@@ -2,3 +2,4 @@ adafruit-blinka
 adafruit-circuitpython-neopixel
 bleak==3.0.2
 rpi-ws281x
+cryptography

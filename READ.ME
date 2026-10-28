@@ -7,8 +7,8 @@ This project controls a 212-pixel WS281x strip, reads data from BLE devices, and
 - Raspberry Pi Zero 2 W running Raspberry Pi OS
 - 212-pixel WS281x strip; data line connected to GPIO 18
 - The frame uses LEDs **9–212**. LEDs 1–8 are outside the frame and are left untouched by the main controller.
-- GRB channel order; default brightness in normal modes: 50%
-- Heart-rate sensor: HRM Belt 28911, BLE address DF:44:B1:5D:B8:DC
+- GPIO, pixel order, brightness, active range, and frame segments are configured in settings/strip.json.
+- Heart-rate device profiles and optional BLE addresses are configured in settings/connections.json.
 - Power mode scans for the Cycling Power or Fitness Machine Service (FTMS) BLE profile.
 
 Use a power supply sized for the strip's current draw. Connect the strip's ground to Raspberry Pi ground. Do not power a 212-pixel strip from a Raspberry Pi GPIO pin.
@@ -34,6 +34,21 @@ sudo ./systemd/install-preq.sh -update
 ~~~
 
 The update mode expects the initial installation to exist and `rsync` to be installed. It does not remove files from the Raspberry Pi.
+
+## Device settings
+
+Edit settings/strip.json to configure the strip length, GPIO pin, pixel order, brightness, active LED range, and named frame segments. LED ranges are one-based and inclusive. Empty side segments can be filled in once their physical LED ranges are mapped. The controller uses the configured top segment for its waiting and running-light animations.
+
+Copy settings/connections.example.json to settings/connections.json and add the device addresses or advertised name patterns for your BLE sensors. The current COOSPO H6 profile uses BLE address D3:14:22:AA:55:01. The local connections.json is excluded from Git. If it is absent, the example profiles are used. The web panel builds its device selector from the profiles returned by the controller.
+
+BLE addresses are not authentication credentials, but you can encrypt this settings file with Fernet. The cryptography dependency is installed with the Raspberry Pi requirements. Generate a key outside the project, encrypt the settings, and remove the plaintext file:
+
+~~~sh
+sudo /opt/led-venv/bin/python /opt/raspi-led-controller/settings/encrypt_connections.py \
+  --generate-key /etc/raspi-led-controller/connections.key --remove-plaintext
+~~~
+
+The controller reads the encrypted file at startup using LED_CONNECTIONS_KEY_FILE from its systemd unit. The key file is restricted to root. To protect against someone who can read the whole SD card, keep the key outside that card and provide it securely at service startup; encryption with the key on the same disk protects the project copy from casual disclosure, not full-disk access.
 
 The systemd units in systemd/ assume these paths. The LED controller runs as root, which is required for GPIO/WS281x access. The web panel runs as the unprivileged www-data user.
 
@@ -82,7 +97,7 @@ Stop a manually started server with Ctrl+C. The web panel has no login, so use i
 - **4 — Night Light:** steady, dimmable color selected in the panel, with brightness from 1% to 25%.
 - **5 — Running Light:** moves a short white segment from left to right across the upper frame LEDs 112–151.
 
-When HR or Power mode is waiting for a measurement, a three-LED runner moves along the upper edge (LEDs 112–151) and bounces between its ends. The HR runner is red; the Power runner is blue. Choose Garmin Forerunner, Decathlon, or COOSPO from the HR selector.
+When HR or Power mode is waiting for a measurement, a three-LED runner moves along the upper edge (LEDs 112–151) and bounces between its ends. The HR runner is red; the Power runner is blue. The HR selector lists the profiles configured in settings/connections.json.
 
 For a Garmin watch, enable heart-rate broadcasting over Bluetooth in the watch settings; ANT+-only broadcasting cannot be received by this BLE controller. Compatibility depends on the Forerunner model.
 
@@ -91,6 +106,8 @@ Power mode requires a trainer or power meter that exposes the standard BLE Cycli
 ## Project layout
 
 - led-212.py — LED controller, BLE connections, and local API
+- settings/strip.json — hardware configuration and LED segment geometry
+- settings/connections.example.json — sample BLE profiles; local settings may be encrypted
 - app_logging.py — hourly application log rotation with a 24-hour retention limit
 - web/ — static panel and lightweight API proxy server
 - systemd/led-212.service and systemd/led-web.service — controller and web systemd units

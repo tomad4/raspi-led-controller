@@ -8,6 +8,7 @@ User=root
 WorkingDirectory=/opt/raspi-led-controller
 Environment=PYTHONUNBUFFERED=1
 Environment=APP_LOG_DIR=/var/log/raspi-led-controller
+Environment=LED_CONNECTIONS_KEY_FILE=/etc/raspi-led-controller/connections.key
 ExecStart=/opt/led-venv/bin/python /opt/raspi-led-controller/led-212.py
 LogsDirectory=raspi-led-controller
 LogsDirectoryMode=0750
