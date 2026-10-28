@@ -491,8 +491,7 @@ async def find_hr_device(device_choice, timeout=SCAN_TIMEOUT_SECONDS):
         address = device.address.upper()
         expected_address = profile.get("address", "").upper()
         matching_name = any(
-            token in name if token in {"forerunner", "garmin", "decathlon", "coospo", "hrm belt"}
-            else re.search(rf"(?<![a-z0-9]){re.escape(token)}(?![a-z0-9])", name)
+            re.search(rf"(?<![a-z0-9]){re.escape(token)}(?![a-z0-9])", name)
             for token in profile["names"]
         )
         if (expected_address and address == expected_address) or matching_name:
