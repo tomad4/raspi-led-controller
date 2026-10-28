@@ -9,6 +9,11 @@
     "retry_delay_seconds": 5
   },
   "heart_rate_profiles": {
+    "decathlon": {
+      "label": "Decathlon HR belt",
+      "address": "DF:44:B1:5D:B8:DC",
+      "names": ["decathlon", "hrm belt", "hrm belt 28911"]
+    },
     "coospo": {
       "label": "COOSPO H6",
       "address": "",
