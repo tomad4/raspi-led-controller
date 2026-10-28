@@ -289,15 +289,19 @@ async def demo_animation():
 
 
 async def running_lights(start, stop, color):
-    """Move a three-pixel runner continuously across a selected LED segment."""
+    """Bounce a three-pixel runner between the ends of a selected LED segment."""
     fill_active(BLACK)
     width = stop - start
+    max_position = width - TOP_RUNNER_LENGTH
+    positions = list(range(max_position + 1))
+    positions.extend(range(max_position - 1, 0, -1))
+
     while True:
-        for position in range(width):
+        for position in positions:
             for index in range(start, stop):
                 pixels[index] = BLACK
             for offset in range(TOP_RUNNER_LENGTH):
-                index = start + ((position + offset) % width)
+                index = start + position + offset
                 pixels[index] = color
             pixels.show()
             await asyncio.sleep(TOP_RUNNER_DELAY)
@@ -309,8 +313,8 @@ async def top_scan_animation():
 
 
 async def waiting_hr_animation():
-    """Show a red runner across the frame while waiting for heart-rate data."""
-    await running_lights(ACTIVE_START, ACTIVE_STOP, RED)
+    """Show a red runner on the upper frame while waiting for heart-rate data."""
+    await running_lights(TOP_START, TOP_STOP, RED)
 
 
 async def waiting_power_animation():
