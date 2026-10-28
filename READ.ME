@@ -34,9 +34,12 @@ Both services start at boot. To check their status and logs:
 ~~~sh
 sudo systemctl status led-212.service led-web.service
 sudo journalctl -u led-212.service -u led-web.service -f
+sudo tail -F /var/log/raspi-led-controller/led-212.log /var/log/raspi-led-web/led-web.log
 ~~~
 
 Both services report a systemd watchdog heartbeat. If a service process stops responding, systemd restarts it. The installer also enables the Raspberry Pi hardware watchdog when the `bcm2835_wdt` device is available; this can reboot the Pi if systemd itself stops responding. A watchdog reboot interrupts the current lighting mode and BLE connection.
+
+Python application logs are stored separately under /var/log and rotated hourly. Rotated files older than 24 hours are removed. The journal continues to contain systemd service start, stop, and failure messages.
 
 After changing the LED controller, restart it. The web service is restarted with it:
 
@@ -71,11 +74,14 @@ Stop a manually started server with Ctrl+C. The web panel has no login, so use i
 - **4 — Night Light:** steady, dimmable color selected in the panel, with brightness from 1% to 25%.
 - **5 — Running Light:** moves a short white segment from left to right across the upper frame LEDs 112–151.
 
+When HR mode is waiting for a measurement, three red LEDs run along the frame. Choose Garmin Forerunner, Decathlon, or COOSPO from the HR selector. When Power mode is waiting for a BLE measurement, three blue LEDs run along the upper edge.
+
 Power mode requires a trainer or power meter that exposes the standard BLE Cycling Power profile (0x1818) or FTMS (0x1826). The HRM Belt provides heart rate, not power. Night Light is a steady dim light; it does not analyze or mirror a TV picture.
 
 ## Project layout
 
 - led-212.py — LED controller, BLE connections, and local API
+- app_logging.py — hourly application log rotation with a 24-hour retention limit
 - web/ — static panel and lightweight API proxy server
 - systemd/led-212.service and systemd/led-web.service — controller and web systemd units
 - requirements-rpi.txt — Python dependencies for Raspberry Pi

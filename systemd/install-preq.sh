@@ -10,7 +10,10 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-if [ ! -f "$PROJECT_DIR/led-212.py" ] || [ ! -f "$PROJECT_DIR/requirements-rpi.txt" ]; then
+if [ ! -f "$PROJECT_DIR/led-212.py" ] \
+    || [ ! -f "$PROJECT_DIR/app_logging.py" ] \
+    || [ ! -f "$PROJECT_DIR/requirements-rpi.txt" ] \
+    || [ ! -f "$PROJECT_DIR/web/serve.py" ]; then
     echo "Project files were not found in $PROJECT_DIR." >&2
     echo "Copy the project to $PROJECT_DIR before running this installer." >&2
     exit 1

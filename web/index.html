@@ -52,6 +52,14 @@
         <p class="status" id="status" role="status" aria-live="polite">
           Łączenie ze sterownikiem…
         </p>
+        <div class="hr-controls" id="hr-controls" hidden>
+          <label for="hr-device">Urządzenie HR</label>
+          <select id="hr-device">
+            <option value="forerunner">Zegarek Garmin Forerunner</option>
+            <option value="decathlon" selected>Pasek Decathlon</option>
+            <option value="coospo">Pasek COOSPO</option>
+          </select>
+        </div>
         <div class="night-controls" id="night-controls" hidden>
           <label>Kolor <input id="night-color" type="color" value="#ff9650" /></label>
           <label>Jasność <input id="night-brightness" type="range" min="0.01" max="0.25" step="0.01" value="0.08" /></label>

@@ -3,6 +3,7 @@
 
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+import logging
 import os
 import socket
 import sys
@@ -13,6 +14,10 @@ from urllib.request import Request, urlopen
 
 WEB_DIR = Path(__file__).resolve().parent
 ALLOWED_FILES = {"/": "index.html", "/index.html": "index.html", "/style.css": "style.css", "/app.js": "app.js"}
+sys.path.insert(0, str(WEB_DIR.parent))
+from app_logging import configure_app_logging
+
+configure_app_logging("led-web")
 
 
 def systemd_notify(message):
@@ -26,7 +31,7 @@ def systemd_notify(message):
         with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as notify_socket:
             notify_socket.sendto(message.encode("utf-8"), address)
     except OSError as error:
-        print(f"Nie udało się powiadomić systemd: {error}", file=sys.stderr, flush=True)
+        logging.warning("Nie udało się powiadomić systemd: %s", error)
 
 
 class WatchdogHTTPServer(ThreadingHTTPServer):
@@ -49,6 +54,9 @@ class WatchdogHTTPServer(ThreadingHTTPServer):
             systemd_notify("WATCHDOG=1")
             self.last_watchdog = now
 
+    def handle_error(self, request, client_address):
+        logging.exception("Web request failed for %s", client_address[0])
+
 
 class PageHandler(SimpleHTTPRequestHandler):
     def translate_path(self, path):
@@ -56,7 +64,9 @@ class PageHandler(SimpleHTTPRequestHandler):
         return str(WEB_DIR / filename) if filename else str(WEB_DIR / "__not_found__")
 
     def log_message(self, format_string, *args):
-        print("[%s] %s" % (self.log_date_time_string(), format_string % args))
+        if self.path.startswith("/api/status"):
+            return
+        logging.info("%s - %s", self.address_string(), format_string % args)
 
     def proxy_api(self, method, path):
         body = None
@@ -104,7 +114,7 @@ if len(sys.argv) != 3:
 
 os.chdir(WEB_DIR)
 server = WatchdogHTTPServer((sys.argv[1], int(sys.argv[2])), PageHandler)
-print(f"Serwer statycznej strony działa na {sys.argv[1]}:{sys.argv[2]}", flush=True)
+logging.info("Serwer statycznej strony działa na %s:%s", sys.argv[1], sys.argv[2])
 systemd_notify("READY=1\nSTATUS=Web panel ready")
 try:
     server.serve_forever()

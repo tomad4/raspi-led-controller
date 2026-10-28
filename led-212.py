@@ -8,7 +8,10 @@ import os
 import re
 import socket
 import sys
-import traceback
+
+from app_logging import configure_app_logging
+
+configure_app_logging("led-212")
 
 import board
 import neopixel
@@ -30,9 +33,22 @@ TOP_STOP = 151  # Exclusive end index: LED 151
 TOP_RUNNER_LENGTH = 3
 TOP_RUNNER_DELAY = 0.08
 WHITE = (255, 255, 255)
+RED = (255, 0, 0)
+BLUE = (0, 0, 255)
 
 HR_MAC = "DF:44:B1:5D:B8:DC"  # HRM Belt 28911
-HR_PROFILE = "HRM Belt 28911"
+HR_DEVICE_PROFILES = {
+    "forerunner": {"label": "Garmin Forerunner", "names": ("forerunner", "garmin")},
+    "decathlon": {
+        "label": "Decathlon HR belt",
+        "address": HR_MAC.upper(),
+        "names": ("decathlon", "hrm belt", "hrm belt 28911"),
+    },
+    "coospo": {
+        "label": "COOSPO HR belt",
+        "names": ("coospo", "h6", "h808s", "h9z", "hw807", "hw706"),
+    },
+}
 HEART_RATE_CHARACTERISTIC = "00002a37-0000-1000-8000-00805f9b34fb"
 CYCLING_POWER_SERVICE = "00001818-0000-1000-8000-00805f9b34fb"
 FTMS_SERVICE = "00001826-0000-1000-8000-00805f9b34fb"
@@ -53,18 +69,12 @@ ZONE_COLORS = {
     "red": (255, 0, 0),
 }
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    stream=sys.stdout,
-)
-
 pixels = None
 current_task = None
 last_zone = None
 active_mode = "hr"
 last_active_mode = "hr"
+hr_device_choice = "decathlon"
 latest_hr = None
 latest_power = None
 night_color = (255, 150, 80)
@@ -76,11 +86,16 @@ power_connected = False
 
 
 def set_control(payload):
-    global active_mode, last_active_mode, night_color, night_brightness
+    global active_mode, last_active_mode, hr_device_choice, night_color, night_brightness
 
     mode = payload.get("mode")
     if mode not in {"toggle", "off", "hr", "power", "demo", "night", "top_scan"}:
         raise ValueError("Nieznany tryb.")
+    device_choice = payload.get("hr_device")
+    if device_choice is not None:
+        if device_choice not in HR_DEVICE_PROFILES:
+            raise ValueError("Nieznane urządzenie HR.")
+        hr_device_choice = device_choice
     if mode == "toggle":
         if active_mode == "off":
             active_mode = last_active_mode
@@ -112,6 +127,8 @@ def set_control(payload):
 def get_status():
     return {
         "mode": active_mode,
+        "hr_device": hr_device_choice,
+        "hr_device_label": HR_DEVICE_PROFILES[hr_device_choice]["label"],
         "hr": latest_hr,
         "power_w": latest_power,
         "hr_connected": hr_connected,
@@ -271,18 +288,34 @@ async def demo_animation():
             await asyncio.sleep(2)
 
 
+async def running_lights(start, stop, color):
+    """Move a three-pixel runner continuously across a selected LED segment."""
+    fill_active(BLACK)
+    width = stop - start
+    while True:
+        for position in range(width):
+            for index in range(start, stop):
+                pixels[index] = BLACK
+            for offset in range(TOP_RUNNER_LENGTH):
+                index = start + ((position + offset) % width)
+                pixels[index] = color
+            pixels.show()
+            await asyncio.sleep(TOP_RUNNER_DELAY)
+
+
 async def top_scan_animation():
     """Move a short white runner from left to right along LEDs 112–151."""
-    fill_active(BLACK)
-    width = TOP_STOP - TOP_START
-    for position in range(width):
-        for index in range(TOP_START, TOP_STOP):
-            pixels[index] = BLACK
-        for offset in range(TOP_RUNNER_LENGTH):
-            index = TOP_START + ((position + offset) % width)
-            pixels[index] = WHITE
-        pixels.show()
-        await asyncio.sleep(TOP_RUNNER_DELAY)
+    await running_lights(TOP_START, TOP_STOP, WHITE)
+
+
+async def waiting_hr_animation():
+    """Show a red runner across the frame while waiting for heart-rate data."""
+    await running_lights(ACTIVE_START, ACTIVE_STOP, RED)
+
+
+async def waiting_power_animation():
+    """Show a blue runner on the top edge while waiting for power data."""
+    await running_lights(TOP_START, TOP_STOP, BLUE)
 
 
 async def render_modes():
@@ -299,8 +332,7 @@ async def render_modes():
             pixels.show()
         elif active_mode == "hr":
             if latest_hr is None:
-                fill_active(BLACK)
-                pixels.show()
+                current_task = asyncio.create_task(waiting_hr_animation())
             else:
                 zone = get_zone(latest_hr)
                 current_task = asyncio.create_task(
@@ -308,8 +340,7 @@ async def render_modes():
                 )
         elif active_mode == "power":
             if latest_power is None:
-                fill_active(BLACK)
-                pixels.show()
+                current_task = asyncio.create_task(waiting_power_animation())
             else:
                 paint_power(latest_power)
         elif active_mode == "demo":
@@ -368,7 +399,12 @@ def on_heart_rate(_sender, data):
     if zone == last_zone:
         return
     last_zone = zone
-    logging.info("[%s] Tętno: %s BPM, strefa: %s", HR_PROFILE, hr, zone)
+    logging.info(
+        "[%s] Tętno: %s BPM, strefa: %s",
+        HR_DEVICE_PROFILES[hr_device_choice]["label"],
+        hr,
+        zone,
+    )
 
     # Bleak callbacks run on the asyncio loop. Cancel the previous effect
     # instead of creating a new task for every measurement.
@@ -378,6 +414,8 @@ def on_heart_rate(_sender, data):
     if zone == "blink":
         current_task = asyncio.create_task(blinking_red())
     else:
+        fill_active(BLACK)
+        pixels.show()
         current_task = asyncio.create_task(fade_from_center(ZONE_COLORS[zone]))
 
 
@@ -397,7 +435,7 @@ def parse_indoor_bike_power(data):
 
 
 def on_power_data(_sender, data):
-    global latest_power
+    global current_task, latest_power
 
     if len(data) < 4:
         return
@@ -406,28 +444,43 @@ def on_power_data(_sender, data):
         return
     latest_power = watts
     if active_mode == "power":
+        if current_task is not None and not current_task.done():
+            current_task.cancel()
+            current_task = None
         paint_power(watts)
 
 
 def on_indoor_bike_data(_sender, data):
-    global latest_power
+    global current_task, latest_power
 
     watts = parse_indoor_bike_power(data)
     if watts is None or not 0 <= watts <= 3000:
         return
     latest_power = watts
     if active_mode == "power":
+        if current_task is not None and not current_task.done():
+            current_task.cancel()
+            current_task = None
         paint_power(watts)
 
 
-async def find_hr_device(timeout=SCAN_TIMEOUT_SECONDS):
-    """Find the sensor without retaining every device seen during the scan."""
+async def find_hr_device(device_choice, timeout=SCAN_TIMEOUT_SECONDS):
+    """Find a selected heart-rate sensor by its advertised name or address."""
     found = asyncio.Event()
     result = None
+    profile = HR_DEVICE_PROFILES[device_choice]
 
-    def on_advertisement(device, _advertisement_data):
+    def on_advertisement(device, advertisement_data):
         nonlocal result
-        if device.address.upper() == HR_MAC.upper():
+        name = (advertisement_data.local_name or device.name or "").lower()
+        address = device.address.upper()
+        expected_address = profile.get("address")
+        matching_name = any(
+            token in name if token in {"forerunner", "garmin", "decathlon", "coospo", "hrm belt"}
+            else re.search(rf"(?<![a-z0-9]){re.escape(token)}(?![a-z0-9])", name)
+            for token in profile["names"]
+        )
+        if address == expected_address or matching_name:
             result = device
             found.set()
 
@@ -472,15 +525,22 @@ async def ble_worker():
 
     while True:
         mode = active_mode
+        selected_hr_device = hr_device_choice
         if mode not in {"hr", "power"}:
             await wait_for_mode_change()
             continue
         try:
-            device = await (find_hr_device() if mode == "hr" else find_power_device())
+            device = await (
+                find_hr_device(selected_hr_device) if mode == "hr" else find_power_device()
+            )
             if device is None:
-                label = "paska HR" if mode == "hr" else "miernika mocy BLE (Cycling Power/FTMS)"
+                label = (
+                    HR_DEVICE_PROFILES[selected_hr_device]["label"]
+                    if mode == "hr"
+                    else "miernika mocy BLE (Cycling Power/FTMS)"
+                )
                 logging.info("Nie znaleziono %s; ponawiam skan.", label)
-            elif active_mode == mode:
+            elif active_mode == mode and (mode != "hr" or hr_device_choice == selected_hr_device):
                 logging.info("Znaleziono urządzenie BLE: %s", device.address)
                 async with BleakClient(device) as client:
                     if mode == "hr":
@@ -503,7 +563,11 @@ async def ble_worker():
                             raise RuntimeError("Urządzenie nie udostępnia Cycling Power ani FTMS.")
                         power_connected = True
                         logging.info("Połączono z czujnikiem mocy BLE.")
-                    while client.is_connected and active_mode == mode:
+                    while (
+                        client.is_connected
+                        and active_mode == mode
+                        and (mode != "hr" or hr_device_choice == selected_hr_device)
+                    ):
                         await asyncio.sleep(1)
         except Exception:
             logging.exception("Połączenie lub odczyt BLE nie powiódł się.")
@@ -561,8 +625,7 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("Wyłączono.")
+        logging.info("Wyłączono.")
     except Exception:
-        logging.error("Aplikacja zakończyła się błędem.")
-        traceback.print_exc()
+        logging.exception("Aplikacja zakończyła się błędem.")
         sys.exit(1)

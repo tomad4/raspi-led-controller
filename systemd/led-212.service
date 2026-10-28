@@ -7,15 +7,18 @@ NotifyAccess=main
 User=root
 WorkingDirectory=/opt/raspi-led-controller
 Environment=PYTHONUNBUFFERED=1
+Environment=APP_LOG_DIR=/var/log/raspi-led-controller
 ExecStart=/opt/led-venv/bin/python /opt/raspi-led-controller/led-212.py
+LogsDirectory=raspi-led-controller
+LogsDirectoryMode=0750
 Restart=on-failure
 RestartSec=5
 WatchdogSec=45
 TimeoutStartSec=30
 KillSignal=SIGINT
 TimeoutStopSec=15
-StandardOutput=journal
-StandardError=journal
+StandardOutput=null
+StandardError=null
 
 [Install]
 WantedBy=multi-user.target
