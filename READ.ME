@@ -21,11 +21,19 @@ Create the project directory and copy the repository contents there:
 sudo install -d /opt/raspi-led-controller
 ~~~
 
-After copying the repository contents to /opt/raspi-led-controller, run the installer. It creates the virtual environment, installs Python dependencies, installs both systemd units, and enables and starts the LED controller and web panel:
+For a new installation, copy the project to /opt/raspi-led-controller and run the installer. It installs system packages and Python dependencies, configures the available watchdog, installs both systemd units, and enables and starts the LED controller and web panel:
 
 ~~~sh
 sudo /opt/raspi-led-controller/systemd/install-preq.sh
 ~~~
+
+For later deployments, run the installer from the updated project checkout with `-update`. It copies only new or changed project files to /opt/raspi-led-controller, updates Python dependencies only when requirements-rpi.txt changed, reloads systemd only when a service unit changed, and restarts both services:
+
+~~~sh
+sudo ./systemd/install-preq.sh -update
+~~~
+
+The update mode expects the initial installation to exist and `rsync` to be installed. It does not remove files from the Raspberry Pi.
 
 The systemd units in systemd/ assume these paths. The LED controller runs as root, which is required for GPIO/WS281x access. The web panel runs as the unprivileged www-data user.
 
