@@ -2,7 +2,7 @@
 """Independent, low-brightness test for a 212-LED NeoPixel strip on Raspberry Pi.
 
 Run in the existing virtual environment (GPIO18 requires root on Raspberry Pi):
-    sudo /opt/led-venv/bin/python /opt/raspi-led-controller/tst/test_led_strip.py
+    sudo /opt/led-venv/bin/python /opt/raspi-led-controller/tests/manual/test_led_strip.py
 
 This script does not use BLE or the main application. Brightness is limited to 12%.
 """

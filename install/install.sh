@@ -35,8 +35,8 @@ if [ ! -f "$SOURCE_DIR/led-212.py" ] \
     || [ ! -f "$SOURCE_DIR/app_logging.py" ] \
     || [ ! -f "$SOURCE_DIR/requirements-rpi.txt" ] \
     || [ ! -f "$SOURCE_DIR/web/serve.py" ] \
-    || [ ! -f "$SOURCE_DIR/systemd/led-212.service" ] \
-    || [ ! -f "$SOURCE_DIR/systemd/led-web.service" ]; then
+    || [ ! -f "$SOURCE_DIR/install/led-212.service" ] \
+    || [ ! -f "$SOURCE_DIR/install/led-web.service" ]; then
     echo "The project source is incomplete: $SOURCE_DIR" >&2
     exit 1
 fi
@@ -66,11 +66,11 @@ if [ "$MODE" = update ] && [ -d "$PROJECT_DIR" ]; then
         REQUIREMENTS_CHANGED=1
     fi
     if [ -f /etc/systemd/system/led-212.service ] \
-        && cmp -s "$SOURCE_DIR/systemd/led-212.service" /etc/systemd/system/led-212.service; then
+        && cmp -s "$SOURCE_DIR/install/led-212.service" /etc/systemd/system/led-212.service; then
         LED_UNIT_CHANGED=0
     fi
     if [ -f /etc/systemd/system/led-web.service ] \
-        && cmp -s "$SOURCE_DIR/systemd/led-web.service" /etc/systemd/system/led-web.service; then
+        && cmp -s "$SOURCE_DIR/install/led-web.service" /etc/systemd/system/led-web.service; then
         WEB_UNIT_CHANGED=0
     fi
 fi
@@ -126,10 +126,10 @@ fi
 
 echo "Installing changed systemd service definitions..."
 if [ "$MODE" = install ] || [ "$LED_UNIT_CHANGED" -eq 1 ]; then
-    install -m 0644 "$PROJECT_DIR/systemd/led-212.service" /etc/systemd/system/led-212.service
+    install -m 0644 "$PROJECT_DIR/install/led-212.service" /etc/systemd/system/led-212.service
 fi
 if [ "$MODE" = install ] || [ "$WEB_UNIT_CHANGED" -eq 1 ]; then
-    install -m 0644 "$PROJECT_DIR/systemd/led-web.service" /etc/systemd/system/led-web.service
+    install -m 0644 "$PROJECT_DIR/install/led-web.service" /etc/systemd/system/led-web.service
 fi
 if [ "${REEXEC_SYSTEMD:-0}" -eq 1 ]; then
     systemctl daemon-reexec

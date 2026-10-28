@@ -2,7 +2,7 @@
 """Scan for BLE devices for 30 seconds and print their name, address, and RSSI.
 
 On Raspberry Pi, run it in the project's virtual environment:
-    /opt/led-venv/bin/python /opt/raspi-led-controller/tst/ble-finder.py
+    /opt/led-venv/bin/python /opt/raspi-led-controller/tests/manual/ble-finder.py
 
 This script does not use GPIO or the main LED application.
 """

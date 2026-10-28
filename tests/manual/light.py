@@ -2,9 +2,9 @@
 """Manually light a selected LED or range on a 212-pixel NeoPixel strip.
 
 Examples (LED numbers are one-based):
-    sudo /opt/led-venv/bin/python /opt/raspi-led-controller/tst/light.py -1
-    sudo /opt/led-venv/bin/python /opt/raspi-led-controller/tst/light.py -1_3 -g
-    sudo /opt/led-venv/bin/python /opt/raspi-led-controller/tst/light.py -20 -r
+    sudo /opt/led-venv/bin/python /opt/raspi-led-controller/tests/manual/light.py -1
+    sudo /opt/led-venv/bin/python /opt/raspi-led-controller/tests/manual/light.py -1_3 -g
+    sudo /opt/led-venv/bin/python /opt/raspi-led-controller/tests/manual/light.py -20 -r
 
 Red is used when no color flag is given. LEDs stay on until Ctrl+C.
 On Raspberry Pi, GPIO control requires running with sudo.

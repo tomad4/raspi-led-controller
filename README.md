@@ -24,13 +24,13 @@ sudo install -d /opt/raspi-led-controller
 For a new installation, copy the project to /opt/raspi-led-controller and run the installer. It installs system packages and Python dependencies, configures the available watchdog, installs both systemd units, and enables and starts the LED controller and web panel:
 
 ~~~sh
-sudo /opt/raspi-led-controller/systemd/install-preq.sh
+sudo /opt/raspi-led-controller/install/install.sh
 ~~~
 
 For later deployments, run the installer from the updated project checkout with `-update`. It copies only new or changed project files to /opt/raspi-led-controller, updates Python dependencies only when requirements-rpi.txt changed, reloads systemd only when a service unit changed, and restarts both services:
 
 ~~~sh
-sudo ./systemd/install-preq.sh -update
+sudo ./install/install.sh -update
 ~~~
 
 The update mode expects the initial installation to exist and `rsync` to be installed. It does not remove files from the Raspberry Pi.
@@ -50,7 +50,7 @@ sudo /opt/led-venv/bin/python /opt/raspi-led-controller/settings/encrypt_connect
 
 The controller reads the encrypted file at startup using LED_CONNECTIONS_KEY_FILE from its systemd unit. The key file is restricted to root. To protect against someone who can read the whole SD card, keep the key outside that card and provide it securely at service startup; encryption with the key on the same disk protects the project copy from casual disclosure, not full-disk access.
 
-The systemd units in systemd/ assume these paths. The LED controller runs as root, which is required for GPIO/WS281x access. The web panel runs as the unprivileged www-data user.
+The units in install/ assume these paths. The LED controller runs as root, which is required for GPIO/WS281x access. The web panel runs as the unprivileged www-data user.
 
 Both services start at boot. To check their status and logs:
 
@@ -110,7 +110,9 @@ Power mode requires a trainer or power meter that exposes the standard BLE Cycli
 - settings/connections.example.json — sample BLE profiles; local settings may be encrypted
 - app_logging.py — hourly application log rotation with a 24-hour retention limit
 - web/ — static panel and lightweight API proxy server
-- systemd/led-212.service and systemd/led-web.service — controller and web systemd units
+- install/install.sh — first-time installer and incremental updater
+- install/led-212.service and install/led-web.service — systemd unit definitions
 - requirements-rpi.txt — Python dependencies for Raspberry Pi
-- tst/ and backups/ — experiments, manual tests, and previous versions
+- tests/manual/ — hardware test and diagnostic scripts; run only when needed
+- archive/ — old controller backups and unused web UI prototype
 - rpi_ws281x/ — low-level library source and tools

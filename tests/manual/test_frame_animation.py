@@ -5,7 +5,7 @@ LED numbers in comments and messages are one-based. LEDs 1–9
 (the tail outside the frame) remain off.
 
 Run in the existing virtual environment on Raspberry Pi:
-    sudo /opt/led-venv/bin/python /opt/raspi-led-controller/tst/test_frame_animation.py
+    sudo /opt/led-venv/bin/python /opt/raspi-led-controller/tests/manual/test_frame_animation.py
 
 Main frame effects change at random intervals of 10–15 seconds. The top section
 has an independent moving light point. Press Ctrl+C to stop the test.
