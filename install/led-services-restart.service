@@ -1,0 +1,6 @@
+[Unit]
+Description=Restart LED controller and web panel
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl restart led-212.service

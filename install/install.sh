@@ -37,7 +37,11 @@ if [ ! -f "$SOURCE_DIR/led-212.py" ] \
     || [ ! -f "$SOURCE_DIR/web/serve.py" ] \
     || [ ! -f "$SOURCE_DIR/install/led-212.service" ] \
     || [ ! -f "$SOURCE_DIR/install/led-web.service" ] \
-    || [ ! -f "$SOURCE_DIR/install/led-web-sudoers" ]; then
+    || [ ! -f "$SOURCE_DIR/install/led-web-sudoers" ] \
+    || [ ! -f "$SOURCE_DIR/install/led-services-restart.service" ] \
+    || [ ! -f "$SOURCE_DIR/install/led-services-restart.timer" ] \
+    || [ ! -f "$SOURCE_DIR/install/raspi-scheduled-reboot.service" ] \
+    || [ ! -f "$SOURCE_DIR/install/raspi-scheduled-reboot.timer" ]; then
     echo "The project source is incomplete: $SOURCE_DIR" >&2
     exit 1
 fi
@@ -64,6 +68,8 @@ fi
 REQUIREMENTS_CHANGED=0
 LED_UNIT_CHANGED=1
 WEB_UNIT_CHANGED=1
+LED_RESTART_TIMER_CHANGED=1
+RASPI_REBOOT_TIMER_CHANGED=1
 if [ "$MODE" = update ] && [ -d "$PROJECT_DIR" ]; then
     if [ -f "$PROJECT_DIR/requirements-rpi.txt" ] \
         && cmp -s "$SOURCE_DIR/requirements-rpi.txt" "$PROJECT_DIR/requirements-rpi.txt"; then
@@ -78,6 +84,18 @@ if [ "$MODE" = update ] && [ -d "$PROJECT_DIR" ]; then
     if [ -f /etc/systemd/system/led-web.service ] \
         && cmp -s "$SOURCE_DIR/install/led-web.service" /etc/systemd/system/led-web.service; then
         WEB_UNIT_CHANGED=0
+    fi
+    if [ -f /etc/systemd/system/led-services-restart.service ] \
+        && [ -f /etc/systemd/system/led-services-restart.timer ] \
+        && cmp -s "$SOURCE_DIR/install/led-services-restart.service" /etc/systemd/system/led-services-restart.service \
+        && cmp -s "$SOURCE_DIR/install/led-services-restart.timer" /etc/systemd/system/led-services-restart.timer; then
+        LED_RESTART_TIMER_CHANGED=0
+    fi
+    if [ -f /etc/systemd/system/raspi-scheduled-reboot.service ] \
+        && [ -f /etc/systemd/system/raspi-scheduled-reboot.timer ] \
+        && cmp -s "$SOURCE_DIR/install/raspi-scheduled-reboot.service" /etc/systemd/system/raspi-scheduled-reboot.service \
+        && cmp -s "$SOURCE_DIR/install/raspi-scheduled-reboot.timer" /etc/systemd/system/raspi-scheduled-reboot.timer; then
+        RASPI_REBOOT_TIMER_CHANGED=0
     fi
 fi
 
@@ -138,10 +156,19 @@ fi
 if [ "$MODE" = install ] || [ "$WEB_UNIT_CHANGED" -eq 1 ]; then
     install -m 0644 "$PROJECT_DIR/install/led-web.service" /etc/systemd/system/led-web.service
 fi
+if [ "$MODE" = install ] || [ "$LED_RESTART_TIMER_CHANGED" -eq 1 ]; then
+    install -m 0644 "$PROJECT_DIR/install/led-services-restart.service" /etc/systemd/system/led-services-restart.service
+    install -m 0644 "$PROJECT_DIR/install/led-services-restart.timer" /etc/systemd/system/led-services-restart.timer
+fi
+if [ "$MODE" = install ] || [ "$RASPI_REBOOT_TIMER_CHANGED" -eq 1 ]; then
+    install -m 0644 "$PROJECT_DIR/install/raspi-scheduled-reboot.service" /etc/systemd/system/raspi-scheduled-reboot.service
+    install -m 0644 "$PROJECT_DIR/install/raspi-scheduled-reboot.timer" /etc/systemd/system/raspi-scheduled-reboot.timer
+fi
 if [ "${REEXEC_SYSTEMD:-0}" -eq 1 ]; then
     systemctl daemon-reexec
 fi
-if [ "$MODE" = install ] || [ "$LED_UNIT_CHANGED" -eq 1 ] || [ "$WEB_UNIT_CHANGED" -eq 1 ]; then
+if [ "$MODE" = install ] || [ "$LED_UNIT_CHANGED" -eq 1 ] || [ "$WEB_UNIT_CHANGED" -eq 1 ] \
+    || [ "$LED_RESTART_TIMER_CHANGED" -eq 1 ] || [ "$RASPI_REBOOT_TIMER_CHANGED" -eq 1 ]; then
     systemctl daemon-reload
 fi
 
@@ -149,6 +176,8 @@ echo "Enabling and restarting the controller and web panel..."
 systemctl enable led-212.service led-web.service
 systemctl restart led-212.service
 systemctl restart led-web.service
+systemctl enable led-services-restart.timer raspi-scheduled-reboot.timer
+systemctl restart led-services-restart.timer raspi-scheduled-reboot.timer
 
 echo "Service status:"
-systemctl --no-pager --full status led-212.service led-web.service
+systemctl --no-pager --full status led-212.service led-web.service led-services-restart.timer raspi-scheduled-reboot.timer

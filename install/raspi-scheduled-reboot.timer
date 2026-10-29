@@ -1,0 +1,10 @@
+[Unit]
+Description=Reboot Raspberry Pi at midnight and noon
+
+[Timer]
+OnCalendar=*-*-* 00,12:00:00
+AccuracySec=1s
+Unit=raspi-scheduled-reboot.service
+
+[Install]
+WantedBy=timers.target

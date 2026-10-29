@@ -62,6 +62,14 @@ sudo tail -F /var/log/raspi-led-controller/led-212.log /var/log/raspi-led-web/le
 
 Both services report a systemd watchdog heartbeat. If a service process stops responding, systemd restarts it. The installer also enables the Raspberry Pi hardware watchdog when the `bcm2835_wdt` device is available; this can reboot the Pi if systemd itself stops responding. A watchdog reboot interrupts the current lighting mode and BLE connection.
 
+The installer enables two scheduled timers: the LED controller (and its web panel) restarts every two hours, except at 00:00 and 12:00 when the Pi reboots instead. The reboot timer runs at 00:00 and 12:00 according to the Raspberry Pi's local timezone. Check their next run times with:
+
+~~~sh
+systemctl list-timers led-services-restart.timer raspi-scheduled-reboot.timer
+~~~
+
+Disable either schedule with `sudo systemctl disable --now led-services-restart.timer` or `sudo systemctl disable --now raspi-scheduled-reboot.timer`.
+
 Python application logs are stored separately under /var/log and rotated hourly. Rotated files older than 24 hours are removed. The journal continues to contain systemd service start, stop, and failure messages.
 
 After changing the LED controller, restart it. The web service is restarted with it:
