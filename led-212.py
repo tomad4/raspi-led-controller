@@ -33,6 +33,13 @@ TOP_STOP = int(TOP_RANGE[1])
 ANIMATION_STEP = int(STRIP_SETTINGS["animation"]["step"])
 TOP_RUNNER_LENGTH = int(STRIP_SETTINGS["animation"]["runner_length"])
 TOP_RUNNER_DELAY = float(STRIP_SETTINGS["animation"]["runner_delay_seconds"])
+ZONE_TRANSITION_STEPS = 18
+ZONE_TRANSITION_DELAY = 0.02
+HR_ZONE_EFFECT_INTERVAL_SECONDS = 30
+TETRIS_BLOCK_COUNT = 5
+TETRIS_BLOCK_LENGTH = 3
+TETRIS_BLOCK_SPACING = 7
+TETRIS_FRAME_DELAY = 0.035
 WHITE = (255, 255, 255)
 RED = (255, 0, 0)
 BLUE = (0, 0, 255)
@@ -75,6 +82,7 @@ ZONE_COLORS = {
     "orange": (255, 165, 0),
     "red": (255, 0, 0),
 }
+HR_EFFECT_COLORS = tuple(ZONE_COLORS.values())
 
 pixels = None
 current_task = None
@@ -84,6 +92,8 @@ last_active_mode = "hr"
 hr_device_choice = next(iter(HR_DEVICE_PROFILES))
 latest_hr = None
 latest_power = None
+last_hr_effect_time = None
+hr_display_color = BLACK
 night_color = (255, 150, 80)
 night_brightness = 0.08
 render_event = None
@@ -94,7 +104,9 @@ power_connected = False
 
 def set_control(payload):
     global active_mode, last_active_mode, hr_device_choice, night_color, night_brightness
+    global last_zone, last_hr_effect_time, hr_display_color
 
+    previous_mode = active_mode
     mode = payload.get("mode")
     if mode not in {"toggle", "off", "hr", "power", "demo", "night", "top_scan"}:
         raise ValueError("Nieznany tryb.")
@@ -116,6 +128,11 @@ def set_control(payload):
     else:
         active_mode = mode
         last_active_mode = mode
+
+    if active_mode == "hr" and previous_mode != "hr":
+        last_zone = None
+        last_hr_effect_time = None
+        hr_display_color = BLACK
 
     color = payload.get("color")
     if color is not None:
@@ -273,13 +290,65 @@ async def fade_from_center(target_color):
     pixels.show()
 
 
+async def transition_hr_color(target_color):
+    """Blend the whole active strip smoothly into the current HR zone color."""
+    global hr_display_color
+
+    start_color = hr_display_color
+    for step in range(1, ZONE_TRANSITION_STEPS + 1):
+        fraction = step / ZONE_TRANSITION_STEPS
+        color = tuple(
+            round(start + (target - start) * fraction)
+            for start, target in zip(start_color, target_color)
+        )
+        fill_active(color)
+        pixels.show()
+        hr_display_color = color
+        await asyncio.sleep(ZONE_TRANSITION_DELAY)
+
+
+async def tetris_zone_effect(base_color):
+    """Send small colored blocks away from the top segment along both sides."""
+    left_path = range(TOP_START - 1, ACTIVE_START - 1, -1)
+    right_path = range(TOP_STOP, ACTIVE_STOP)
+    paths = (left_path, right_path)
+    palette = tuple(color for color in HR_EFFECT_COLORS if color != base_color)
+    max_path_length = max(len(path) for path in paths)
+    frame_count = max_path_length + TETRIS_BLOCK_SPACING * (TETRIS_BLOCK_COUNT - 1) + TETRIS_BLOCK_LENGTH
+
+    for frame in range(frame_count):
+        # Keep the upper segment untouched while restoring the zone color elsewhere.
+        for index in range(ACTIVE_START, TOP_START):
+            pixels[index] = base_color
+        for index in range(TOP_STOP, ACTIVE_STOP):
+            pixels[index] = base_color
+
+        for path_number, path in enumerate(paths):
+            for block_number in range(TETRIS_BLOCK_COUNT):
+                position = frame - block_number * TETRIS_BLOCK_SPACING
+                if position < 0 or position >= len(path):
+                    continue
+                color = palette[(block_number + path_number * 2) % len(palette)]
+                for offset in range(TETRIS_BLOCK_LENGTH):
+                    block_position = position + offset
+                    if block_position < len(path):
+                        pixels[path[block_position]] = color
+
+        pixels.show()
+        await asyncio.sleep(TETRIS_FRAME_DELAY)
+
+
 async def blinking_red():
+    global hr_display_color
+
     while True:
         fill_active(ZONE_COLORS["red"])
         pixels.show()
+        hr_display_color = ZONE_COLORS["red"]
         await asyncio.sleep(0.5)
         fill_active(BLACK)
         pixels.show()
+        hr_display_color = BLACK
         await asyncio.sleep(0.5)
 
 
@@ -351,7 +420,9 @@ async def render_modes():
             else:
                 zone = get_zone(latest_hr)
                 current_task = asyncio.create_task(
-                    blinking_red() if zone == "blink" else fade_from_center(ZONE_COLORS[zone])
+                    blinking_red()
+                    if zone == "blink"
+                    else transition_hr_color(ZONE_COLORS[zone])
                 )
         elif active_mode == "power":
             if latest_power is None:
@@ -384,7 +455,7 @@ async def cancel_current_task():
 
 def on_heart_rate(_sender, data):
     """Parse BLE measurements and start an animation only when the zone changes."""
-    global current_task, last_zone, latest_hr
+    global current_task, last_zone, latest_hr, last_hr_effect_time
 
     if not data:
         logging.warning("Odebrano pusty pomiar tętna.")
@@ -411,9 +482,19 @@ def on_heart_rate(_sender, data):
         return
 
     zone = get_zone(hr)
+    now = asyncio.get_running_loop().time()
     if zone == last_zone:
+        if (
+            zone != "blink"
+            and last_hr_effect_time is not None
+            and now - last_hr_effect_time >= HR_ZONE_EFFECT_INTERVAL_SECONDS
+            and (current_task is None or current_task.done())
+        ):
+            last_hr_effect_time = now
+            current_task = asyncio.create_task(tetris_zone_effect(ZONE_COLORS[zone]))
         return
     last_zone = zone
+    last_hr_effect_time = now
     logging.info(
         "[%s] Tętno: %s BPM, strefa: %s",
         HR_DEVICE_PROFILES[hr_device_choice]["label"],
@@ -429,9 +510,7 @@ def on_heart_rate(_sender, data):
     if zone == "blink":
         current_task = asyncio.create_task(blinking_red())
     else:
-        fill_active(BLACK)
-        pixels.show()
-        current_task = asyncio.create_task(fade_from_center(ZONE_COLORS[zone]))
+        current_task = asyncio.create_task(transition_hr_color(ZONE_COLORS[zone]))
 
 
 def parse_indoor_bike_power(data):
@@ -540,6 +619,7 @@ async def find_power_device(timeout=SCAN_TIMEOUT_SECONDS):
 async def ble_worker():
     """Use one BLE scanner/connection at a time, according to the selected mode."""
     global hr_connected, power_connected, latest_hr, latest_power, last_zone
+    global last_hr_effect_time, hr_display_color
 
     while True:
         mode = active_mode
@@ -594,6 +674,8 @@ async def ble_worker():
                 hr_connected = False
                 latest_hr = None
                 last_zone = None
+                last_hr_effect_time = None
+                hr_display_color = BLACK
             else:
                 power_connected = False
                 latest_power = None
