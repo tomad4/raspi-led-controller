@@ -128,8 +128,12 @@ class PageHandler(SimpleHTTPRequestHandler):
             return
 
         if result.returncode != 0:
-            logging.error("Restart ssh.service nie powiódł się: %s", result.stderr.strip())
-            self.send_json(503, {"error": "Restart SSH nie powiódł się. Sprawdź uprawnienia i log systemd."})
+            detail = (result.stderr or result.stdout).strip()
+            logging.error("Restart ssh.service nie powiódł się: %s", detail)
+            message = "Restart SSH nie powiódł się."
+            if detail:
+                message += " " + detail[:300]
+            self.send_json(503, {"error": message})
             return
 
         logging.info("Zrestartowano ssh.service z panelu webowego.")

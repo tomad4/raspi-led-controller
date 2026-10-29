@@ -23,7 +23,6 @@ WatchdogSec=45
 TimeoutStartSec=30
 StandardOutput=null
 StandardError=null
-NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
