@@ -464,7 +464,8 @@ def on_heart_rate(_sender, data):
 
     zone = get_zone(hr)
     if zone == last_zone:
-        start_hr_zone_animation()
+        if hr_animation_task is None or hr_animation_task.done():
+            render_event.set()
         return
     last_zone = zone
     hr_zone_color = ZONE_COLORS[zone]
@@ -475,8 +476,9 @@ def on_heart_rate(_sender, data):
         zone,
     )
 
-    # Keep one pulsing task alive; it reads the new zone color on its next frame.
-    start_hr_zone_animation()
+    # Let render_modes finish the waiting runner before starting the HR pulse.
+    if hr_animation_task is None or hr_animation_task.done():
+        render_event.set()
 
 
 def parse_indoor_bike_power(data):
