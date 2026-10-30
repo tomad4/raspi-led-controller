@@ -4,7 +4,6 @@
 import asyncio
 import json
 import logging
-import math
 import os
 import re
 import socket
@@ -34,10 +33,6 @@ TOP_STOP = int(TOP_RANGE[1])
 ANIMATION_STEP = int(STRIP_SETTINGS["animation"]["step"])
 TOP_RUNNER_LENGTH = int(STRIP_SETTINGS["animation"]["runner_length"])
 TOP_RUNNER_DELAY = float(STRIP_SETTINGS["animation"]["runner_delay_seconds"])
-HR_ZONE_TRANSITION_SECONDS = 0.4
-HR_PULSE_PERIOD_SECONDS = 1.0
-HR_PULSE_AMPLITUDE = 0.25
-HR_PULSE_FRAME_DELAY = 0.05
 WHITE = (255, 255, 255)
 RED = (255, 0, 0)
 BLUE = (0, 0, 255)
@@ -83,15 +78,12 @@ ZONE_COLORS = {
 
 pixels = None
 current_task = None
-hr_animation_task = None
 last_zone = None
 active_mode = "hr"
 last_active_mode = "hr"
 hr_device_choice = next(iter(HR_DEVICE_PROFILES))
 latest_hr = None
 latest_power = None
-hr_zone_color = BLACK
-hr_display_color = BLACK
 night_color = (255, 150, 80)
 night_brightness = 0.08
 render_event = None
@@ -102,7 +94,7 @@ power_connected = False
 
 def set_control(payload):
     global active_mode, last_active_mode, hr_device_choice, night_color, night_brightness
-    global last_zone, hr_zone_color, hr_display_color
+    global last_zone
 
     previous_mode = active_mode
     mode = payload.get("mode")
@@ -129,8 +121,6 @@ def set_control(payload):
 
     if active_mode == "hr" and previous_mode != "hr":
         last_zone = None
-        hr_zone_color = BLACK
-        hr_display_color = BLACK
 
     color = payload.get("color")
     if color is not None:
@@ -286,55 +276,6 @@ async def fade_from_center(target_color):
     pixels.show()
 
 
-async def hr_zone_animation():
-    """Blend between HR zones while breathing at 60 BPM."""
-    global hr_zone_color, hr_display_color, hr_animation_task
-
-    task = asyncio.current_task()
-    loop = asyncio.get_running_loop()
-    started_at = loop.time()
-    transition_target = hr_zone_color
-    transition_start = hr_display_color
-    transition_started_at = started_at
-
-    try:
-        while active_mode == "hr":
-            now = loop.time()
-            if transition_target != hr_zone_color:
-                transition_target = hr_zone_color
-                transition_start = hr_display_color
-                transition_started_at = now
-
-            progress = min(1.0, (now - transition_started_at) / HR_ZONE_TRANSITION_SECONDS)
-            hr_display_color = tuple(
-                round(start + (target - start) * progress)
-                for start, target in zip(transition_start, transition_target)
-            )
-
-            pulse = 1.0 + HR_PULSE_AMPLITUDE * math.sin(
-                2 * math.pi * (now - started_at) / HR_PULSE_PERIOD_SECONDS
-            )
-            pixels.brightness = max(0.0, min(1.0, BRIGHTNESS * pulse))
-            fill_active(hr_display_color)
-            pixels.show()
-            await asyncio.sleep(HR_PULSE_FRAME_DELAY)
-    finally:
-        if hr_animation_task is task:
-            hr_animation_task = None
-
-
-def start_hr_zone_animation():
-    """Ensure one persistent HR color and pulse animation is running."""
-    global current_task, hr_animation_task
-
-    if hr_animation_task is not None and not hr_animation_task.done():
-        return
-    if current_task is not None and not current_task.done():
-        current_task.cancel()
-    hr_animation_task = asyncio.create_task(hr_zone_animation())
-    current_task = hr_animation_task
-
-
 def paint_power(watts):
     """Map 100–300 W to a blue-to-red gradient."""
     fraction = max(0.0, min(1.0, (watts - 100) / 200))
@@ -386,7 +327,7 @@ async def waiting_power_animation():
 
 
 async def render_modes():
-    global hr_zone_color
+    global current_task
 
     while True:
         await render_event.wait()
@@ -401,8 +342,8 @@ async def render_modes():
             if latest_hr is None:
                 current_task = asyncio.create_task(waiting_hr_animation())
             else:
-                hr_zone_color = ZONE_COLORS[get_zone(latest_hr)]
-                start_hr_zone_animation()
+                fill_active(ZONE_COLORS[get_zone(latest_hr)])
+                pixels.show()
         elif active_mode == "power":
             if latest_power is None:
                 current_task = asyncio.create_task(waiting_power_animation())
@@ -419,12 +360,10 @@ async def render_modes():
 
 
 async def cancel_current_task():
-    global current_task, hr_animation_task
+    global current_task
 
     task = current_task
     current_task = None
-    if task is hr_animation_task:
-        hr_animation_task = None
     if task is None or task.done():
         return
     task.cancel()
@@ -436,7 +375,7 @@ async def cancel_current_task():
 
 def on_heart_rate(_sender, data):
     """Parse BLE measurements and update the active HR zone color."""
-    global last_zone, latest_hr, hr_zone_color
+    global last_zone, latest_hr
 
     if not data:
         logging.warning("Odebrano pusty pomiar tętna.")
@@ -464,11 +403,8 @@ def on_heart_rate(_sender, data):
 
     zone = get_zone(hr)
     if zone == last_zone:
-        if hr_animation_task is None or hr_animation_task.done():
-            render_event.set()
         return
     last_zone = zone
-    hr_zone_color = ZONE_COLORS[zone]
     logging.info(
         "[%s] Tętno: %s BPM, strefa: %s",
         HR_DEVICE_PROFILES[hr_device_choice]["label"],
@@ -476,9 +412,8 @@ def on_heart_rate(_sender, data):
         zone,
     )
 
-    # Let render_modes finish the waiting runner before starting the HR pulse.
-    if hr_animation_task is None or hr_animation_task.done():
-        render_event.set()
+    # render_modes cancels the waiting runner before painting the solid zone color.
+    render_event.set()
 
 
 def parse_indoor_bike_power(data):
@@ -587,7 +522,6 @@ async def find_power_device(timeout=SCAN_TIMEOUT_SECONDS):
 async def ble_worker():
     """Use one BLE scanner/connection at a time, according to the selected mode."""
     global hr_connected, power_connected, latest_hr, latest_power, last_zone
-    global hr_zone_color, hr_display_color
 
     while True:
         mode = active_mode
@@ -642,8 +576,6 @@ async def ble_worker():
                 hr_connected = False
                 latest_hr = None
                 last_zone = None
-                hr_zone_color = BLACK
-                hr_display_color = BLACK
             else:
                 power_connected = False
                 latest_power = None
