@@ -75,6 +75,16 @@ ZONE_COLORS = {
     "orange": (255, 165, 0),
     "red": (255, 0, 0),
 }
+# BPM values near the middle of each zone use that zone's full color. Between
+# these points, blend the RGB channels so every BPM has a gradual color shift.
+HR_COLOR_ANCHORS = (
+    (72, ZONE_COLORS["white"]),
+    (102, ZONE_COLORS["blue"]),
+    (120, ZONE_COLORS["green"]),
+    (139, ZONE_COLORS["yellow"]),
+    (157, ZONE_COLORS["orange"]),
+    (177, ZONE_COLORS["red"]),
+)
 
 pixels = None
 current_task = None
@@ -255,6 +265,22 @@ def get_zone(hr):
     return "red"
 
 
+def get_hr_color(hr):
+    """Interpolate zone colors by BPM, keeping full colors near zone centers."""
+    if hr <= HR_COLOR_ANCHORS[0][0]:
+        return HR_COLOR_ANCHORS[0][1]
+    for (low_hr, low_color), (high_hr, high_color) in zip(
+        HR_COLOR_ANCHORS, HR_COLOR_ANCHORS[1:]
+    ):
+        if hr <= high_hr:
+            fraction = (hr - low_hr) / (high_hr - low_hr)
+            return tuple(
+                round(low + (high - low) * fraction)
+                for low, high in zip(low_color, high_color)
+            )
+    return HR_COLOR_ANCHORS[-1][1]
+
+
 def fill_active(color):
     """Update only LEDs 9–212; leave the LEDs outside the frame untouched."""
     for index in range(ACTIVE_START, ACTIVE_STOP):
@@ -342,7 +368,7 @@ async def render_modes():
             if latest_hr is None:
                 current_task = asyncio.create_task(waiting_hr_animation())
             else:
-                fill_active(ZONE_COLORS[get_zone(latest_hr)])
+                fill_active(get_hr_color(latest_hr))
                 pixels.show()
         elif active_mode == "power":
             if latest_power is None:
@@ -402,17 +428,17 @@ def on_heart_rate(_sender, data):
         return
 
     zone = get_zone(hr)
-    if zone == last_zone:
-        return
-    last_zone = zone
-    logging.info(
-        "[%s] Tętno: %s BPM, strefa: %s",
-        HR_DEVICE_PROFILES[hr_device_choice]["label"],
-        hr,
-        zone,
-    )
+    if zone != last_zone:
+        last_zone = zone
+        logging.info(
+            "[%s] Tętno: %s BPM, strefa: %s",
+            HR_DEVICE_PROFILES[hr_device_choice]["label"],
+            hr,
+            zone,
+        )
 
-    # render_modes cancels the waiting runner before painting the solid zone color.
+    # Refresh the interpolated color on every measurement; render_modes cancels
+    # the waiting runner before painting the active strip.
     render_event.set()
 
 
