@@ -70,7 +70,15 @@ systemctl list-timers led-services-restart.timer raspi-scheduled-reboot.timer
 
 Disable either schedule with `sudo systemctl disable --now led-services-restart.timer` or `sudo systemctl disable --now raspi-scheduled-reboot.timer`.
 
-Python application logs are stored separately under /var/log and rotated hourly. Rotated files older than 24 hours are removed. The journal continues to contain systemd service start, stop, and failure messages.
+Systemd keeps a persistent journal for system events and captures the LED controller and web panel application logs. Journal files rotate weekly, the journal is capped at 5 GB, and entries older than one week are removed. The applications also keep their existing separate files under /var/log, rotated hourly with a 24-hour retention limit.
+
+View current or previous boot logs and follow the LED and web services with:
+
+~~~sh
+sudo journalctl -b
+sudo journalctl -b -1
+sudo journalctl -u led-212.service -u led-web.service -f
+~~~
 
 After changing the LED controller, restart it. The web service is restarted with it:
 
