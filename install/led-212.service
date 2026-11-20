@@ -18,8 +18,8 @@ WatchdogSec=45
 TimeoutStartSec=30
 KillSignal=SIGINT
 TimeoutStopSec=15
-StandardOutput=null
-StandardError=null
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target

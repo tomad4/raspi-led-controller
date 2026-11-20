@@ -50,21 +50,23 @@ class RetentionTimedRotatingFileHandler(TimedRotatingFileHandler):
 
 
 def configure_app_logging(app_name):
-    """Log to a 24-hour rotating file under systemd, or stdout when run manually."""
+    """Log to a rotating file and stderr under systemd, or stderr when run manually."""
+    handlers = [logging.StreamHandler()]
     log_directory = os.environ.get("APP_LOG_DIR")
     if log_directory:
         os.makedirs(log_directory, exist_ok=True)
-        handler = RetentionTimedRotatingFileHandler(
-            os.path.join(log_directory, f"{app_name}.log")
+        handlers.insert(
+            0,
+            RetentionTimedRotatingFileHandler(
+                os.path.join(log_directory, f"{app_name}.log")
+            ),
         )
-    else:
-        handler = logging.StreamHandler()
 
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
-        handlers=[handler],
+        handlers=handlers,
         force=True,
     )
     sys.excepthook = log_uncaught_exception

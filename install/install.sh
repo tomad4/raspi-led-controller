@@ -37,6 +37,7 @@ if [ ! -f "$SOURCE_DIR/led-212.py" ] \
     || [ ! -f "$SOURCE_DIR/web/serve.py" ] \
     || [ ! -f "$SOURCE_DIR/install/led-212.service" ] \
     || [ ! -f "$SOURCE_DIR/install/led-web.service" ] \
+    || [ ! -f "$SOURCE_DIR/install/raspi-led-journald.conf" ] \
     || [ ! -f "$SOURCE_DIR/install/led-web-sudoers" ] \
     || [ ! -f "$SOURCE_DIR/install/led-services-restart.service" ] \
     || [ ! -f "$SOURCE_DIR/install/led-services-restart.timer" ] \
@@ -68,6 +69,7 @@ fi
 REQUIREMENTS_CHANGED=0
 LED_UNIT_CHANGED=1
 WEB_UNIT_CHANGED=1
+JOURNAL_CONFIG_CHANGED=1
 LED_RESTART_TIMER_CHANGED=1
 RASPI_REBOOT_TIMER_CHANGED=1
 if [ "$MODE" = update ] && [ -d "$PROJECT_DIR" ]; then
@@ -84,6 +86,10 @@ if [ "$MODE" = update ] && [ -d "$PROJECT_DIR" ]; then
     if [ -f /etc/systemd/system/led-web.service ] \
         && cmp -s "$SOURCE_DIR/install/led-web.service" /etc/systemd/system/led-web.service; then
         WEB_UNIT_CHANGED=0
+    fi
+    if [ -f /etc/systemd/journald.conf.d/50-raspi-led-controller.conf ] \
+        && cmp -s "$SOURCE_DIR/install/raspi-led-journald.conf" /etc/systemd/journald.conf.d/50-raspi-led-controller.conf; then
+        JOURNAL_CONFIG_CHANGED=0
     fi
     if [ -f /etc/systemd/system/led-services-restart.service ] \
         && [ -f /etc/systemd/system/led-services-restart.timer ] \
@@ -149,6 +155,11 @@ else
 fi
 
 echo "Installing changed systemd service definitions..."
+if [ "$MODE" = install ] || [ "$JOURNAL_CONFIG_CHANGED" -eq 1 ]; then
+    install -d -m 0755 /etc/systemd/journald.conf.d
+    install -m 0644 "$PROJECT_DIR/install/raspi-led-journald.conf" /etc/systemd/journald.conf.d/50-raspi-led-controller.conf
+    systemctl restart systemd-journald.service
+fi
 install -m 0440 "$SOURCE_DIR/install/led-web-sudoers" /etc/sudoers.d/raspi-led-web-ssh
 if [ "$MODE" = install ] || [ "$LED_UNIT_CHANGED" -eq 1 ]; then
     install -m 0644 "$PROJECT_DIR/install/led-212.service" /etc/systemd/system/led-212.service
